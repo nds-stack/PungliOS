@@ -1,5 +1,5 @@
-use anyhow::{bail, Result};
 use crate::traits::{Interface, InterfaceConfig, NetlinkIfaces};
+use anyhow::{Result, bail};
 
 pub struct InterfaceManager<T: NetlinkIfaces> {
     backend: T,
@@ -261,10 +261,34 @@ mod tests {
     #[tokio::test]
     async fn test_empty_name_rejected() {
         let mgr = setup();
-        assert!(mgr.get("").await.unwrap_err().to_string().contains("cannot be empty"));
-        assert!(mgr.delete("").await.unwrap_err().to_string().contains("cannot be empty"));
-        assert!(mgr.set_up("").await.unwrap_err().to_string().contains("cannot be empty"));
-        assert!(mgr.set_down("").await.unwrap_err().to_string().contains("cannot be empty"));
+        assert!(
+            mgr.get("")
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("cannot be empty")
+        );
+        assert!(
+            mgr.delete("")
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("cannot be empty")
+        );
+        assert!(
+            mgr.set_up("")
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("cannot be empty")
+        );
+        assert!(
+            mgr.set_down("")
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("cannot be empty")
+        );
     }
 
     #[tokio::test]

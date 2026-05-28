@@ -1,7 +1,7 @@
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout},
     widgets::{Block, Borders, List, ListItem, Paragraph},
-    Frame,
 };
 
 pub enum TuiScreen {
@@ -70,13 +70,15 @@ impl TuiApp {
             ListItem::new("Conntrack — 0 entries"),
             ListItem::new("System — CPU: 0%, Memory: 0 MB"),
         ];
-        let list = List::new(items).block(Block::default().title("Dashboard").borders(Borders::ALL));
+        let list =
+            List::new(items).block(Block::default().title("Dashboard").borders(Borders::ALL));
         frame.render_widget(list, area);
     }
 
     fn draw_interfaces(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
         let items = vec![ListItem::new("No interfaces configured")];
-        let list = List::new(items).block(Block::default().title("Interfaces").borders(Borders::ALL));
+        let list =
+            List::new(items).block(Block::default().title("Interfaces").borders(Borders::ALL));
         frame.render_widget(list, area);
     }
 
@@ -100,7 +102,8 @@ impl TuiApp {
 
     fn draw_logs(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
         let items = vec![ListItem::new("No logs")];
-        let list = List::new(items).block(Block::default().title("System Logs").borders(Borders::ALL));
+        let list =
+            List::new(items).block(Block::default().title("System Logs").borders(Borders::ALL));
         frame.render_widget(list, area);
     }
 }

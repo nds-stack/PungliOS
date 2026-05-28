@@ -3,9 +3,7 @@ use clap::Subcommand;
 #[derive(Subcommand)]
 pub enum FirewallCommands {
     /// List rules in a zone
-    ListRules {
-        zone: String,
-    },
+    ListRules { zone: String },
     /// Add a rule to a zone/chain
     AddRule {
         zone: String,
@@ -24,9 +22,7 @@ pub enum FirewallCommands {
         action: String,
     },
     /// Delete a rule by handle
-    DeleteRule {
-        handle: u64,
-    },
+    DeleteRule { handle: u64 },
     /// Flush all rules
     Flush,
     /// Create a firewall zone
@@ -61,11 +57,7 @@ pub enum FirewallCommands {
         to_port: Option<u16>,
     },
     /// Add masquerade
-    Masquerade {
-        iface: String,
-    },
+    Masquerade { iface: String },
     /// Delete a NAT rule
-    DeleteNat {
-        handle: u64,
-    },
+    DeleteNat { handle: u64 },
 }

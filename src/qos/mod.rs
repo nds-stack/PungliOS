@@ -2,8 +2,8 @@ pub mod class;
 pub mod fq_codel;
 pub mod htb;
 
-use anyhow::{bail, Result};
 use crate::traits::{ClassConfig, NetlinkQos, QdiscConfig, QdiscKind};
+use anyhow::{Result, bail};
 
 pub struct QosManager<T: NetlinkQos> {
     backend: T,
@@ -145,16 +145,19 @@ mod tests {
     #[tokio::test]
     async fn test_add_class_zero_rate_rejected() {
         let mgr = setup();
-        let err = mgr.add_class(&ClassConfig {
-            iface: "eth0".into(),
-            classid: 1,
-            parent: 0x10,
-            rate: 0,
-            ceil: 0,
-            burst: None,
-            cburst: None,
-            priority: 3,
-        }).await.unwrap_err();
+        let err = mgr
+            .add_class(&ClassConfig {
+                iface: "eth0".into(),
+                classid: 1,
+                parent: 0x10,
+                rate: 0,
+                ceil: 0,
+                burst: None,
+                cburst: None,
+                priority: 3,
+            })
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("rate must be greater than 0"));
     }
 
@@ -167,7 +170,9 @@ mod tests {
     #[tokio::test]
     async fn test_create_user_class() {
         let mgr = setup();
-        mgr.create_user_class("eth0", 0x10_01, 50_000_000, 100_000_000).await.unwrap();
+        mgr.create_user_class("eth0", 0x10_01, 50_000_000, 100_000_000)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]

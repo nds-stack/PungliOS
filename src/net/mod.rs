@@ -1,4 +1,4 @@
-pub mod iface;
 pub mod bridge;
-pub mod vlan;
+pub mod iface;
 pub mod route;
+pub mod vlan;

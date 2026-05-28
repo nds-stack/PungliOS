@@ -1,4 +1,5 @@
 #![deny(unused_crate_dependencies)]
+#![deny(unsafe_code)]
 #![warn(unreachable_pub, unused_imports)]
 
 #[cfg(test)]
@@ -8,14 +9,14 @@ extern crate tempfile;
 #[cfg(test)]
 extern crate tokio_test;
 
-pub mod traits;
-pub mod net;
-pub mod firewall;
-pub mod qos;
-pub mod conntrack;
-pub mod config;
 pub mod cli;
+pub mod config;
+pub mod conntrack;
+pub mod firewall;
+pub mod net;
 pub mod pppoe;
+pub mod qos;
+pub mod traits;
 
 pub mod prelude {
     pub use crate::traits::*;

@@ -5,8 +5,8 @@
 //! (in-memory, no kernel required) and production via `RealBackend`
 //! (nftnl + nlink, Linux only).
 
-pub mod netlink;
 pub mod mock;
+pub mod netlink;
 
-pub use netlink::*;
 pub use mock::MockBackend;
+pub use netlink::*;

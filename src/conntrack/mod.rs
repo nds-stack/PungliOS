@@ -1,8 +1,8 @@
 pub mod fast_track;
 pub mod tuning;
 
-use anyhow::{bail, Result};
 use crate::traits::{ConntrackEntry, NetlinkConntrack};
+use anyhow::{Result, bail};
 
 pub const MAX_CONNTRACK_DEFAULT: u32 = 262_144;
 pub const BUCKETS_DEFAULT: u32 = 65_536;

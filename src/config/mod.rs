@@ -64,18 +64,15 @@ impl ConfigEngine {
 
     pub fn load_binary(&mut self) -> Result<()> {
         if !self.binary_path.exists() {
-            anyhow::bail!(
-                "binary config not found: {}",
-                self.binary_path.display()
-            );
+            anyhow::bail!("binary config not found: {}", self.binary_path.display());
         }
         self.current = load_binary(&self.binary_path)?;
         Ok(())
     }
 
     pub fn save_yaml(&self) -> Result<()> {
-        let yaml_str = serde_yaml::to_string(&self.current)
-            .context("failed to serialize config to YAML")?;
+        let yaml_str =
+            serde_yaml::to_string(&self.current).context("failed to serialize config to YAML")?;
         std::fs::write(&self.yaml_path, &yaml_str)
             .with_context(|| format!("failed to write {}", self.yaml_path.display()))?;
         Ok(())

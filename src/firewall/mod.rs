@@ -3,8 +3,8 @@ pub mod nat;
 pub mod rule;
 pub mod zone;
 
-use anyhow::{bail, Result};
 use crate::traits::{FirewallRule, FirewallZone, NetlinkFirewall};
+use anyhow::{Result, bail};
 
 pub struct FirewallManager<T: NetlinkFirewall> {
     backend: T,
@@ -85,20 +85,25 @@ mod tests {
             forward: Some(FirewallAction::Drop),
             input: Some(FirewallAction::Drop),
             output: Some(FirewallAction::Accept),
-        }).await.unwrap();
+        })
+        .await
+        .unwrap();
 
-        let handle = mgr.add_rule(&FirewallRule {
-            handle: 0,
-            zone: "wan".into(),
-            chain: "forward".into(),
-            protocol: Some("tcp".into()),
-            src_addr: None,
-            dst_addr: None,
-            src_port: None,
-            dst_port: Some(443),
-            action: FirewallAction::Accept,
-            positions: 0,
-        }).await.unwrap();
+        let handle = mgr
+            .add_rule(&FirewallRule {
+                handle: 0,
+                zone: "wan".into(),
+                chain: "forward".into(),
+                protocol: Some("tcp".into()),
+                src_addr: None,
+                dst_addr: None,
+                src_port: None,
+                dst_port: Some(443),
+                action: FirewallAction::Accept,
+                positions: 0,
+            })
+            .await
+            .unwrap();
         assert!(handle > 0);
 
         let rules = mgr.list_rules("wan").await.unwrap();
@@ -109,18 +114,21 @@ mod tests {
     #[tokio::test]
     async fn test_delete_rule() {
         let mgr = setup();
-        let handle = mgr.add_rule(&FirewallRule {
-            handle: 0,
-            zone: "lan".into(),
-            chain: "forward".into(),
-            protocol: None,
-            src_addr: None,
-            dst_addr: None,
-            src_port: None,
-            dst_port: None,
-            action: FirewallAction::Drop,
-            positions: 0,
-        }).await.unwrap();
+        let handle = mgr
+            .add_rule(&FirewallRule {
+                handle: 0,
+                zone: "lan".into(),
+                chain: "forward".into(),
+                protocol: None,
+                src_addr: None,
+                dst_addr: None,
+                src_port: None,
+                dst_port: None,
+                action: FirewallAction::Drop,
+                positions: 0,
+            })
+            .await
+            .unwrap();
 
         mgr.delete_rule(handle).await.unwrap();
         let rules = mgr.list_rules("lan").await.unwrap();
@@ -142,7 +150,9 @@ mod tests {
                 dst_port: None,
                 action: FirewallAction::Accept,
                 positions: 0,
-            }).await.unwrap();
+            })
+            .await
+            .unwrap();
         }
         mgr.flush_rules().await.unwrap();
         let rules = mgr.list_rules("lan").await.unwrap();
@@ -152,12 +162,18 @@ mod tests {
     #[tokio::test]
     async fn test_empty_zone_rejected() {
         let mgr = setup();
-        assert!(mgr.create_zone(&FirewallZone {
-            name: "".into(),
-            interfaces: vec![],
-            forward: None,
-            input: None,
-            output: None,
-        }).await.unwrap_err().to_string().contains("cannot be empty"));
+        assert!(
+            mgr.create_zone(&FirewallZone {
+                name: "".into(),
+                interfaces: vec![],
+                forward: None,
+                input: None,
+                output: None,
+            })
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("cannot be empty")
+        );
     }
 }

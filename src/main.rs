@@ -1,9 +1,9 @@
 use clap::Parser;
+use punglios::cli::CliCommand;
 use punglios::cli::commands::config::ConfigCommands;
 use punglios::cli::commands::firewall::FirewallCommands;
 use punglios::cli::commands::interface::InterfaceCommands;
 use punglios::cli::commands::qos::QosCommands;
-use punglios::cli::CliCommand;
 
 #[derive(Parser)]
 #[command(name = "punglios", about = "Rust-Native ISP/WISP Management Platform")]
@@ -16,8 +16,7 @@ struct Cli {
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .init();
 
@@ -55,7 +54,9 @@ async fn handle_interface(cmd: InterfaceCommands) -> anyhow::Result<()> {
             vlan,
             bridge,
         } => {
-            println!("Creating interface {name}: mtu={mtu:?}, addresses={address:?}, vlan={vlan:?}, bridge={bridge:?}");
+            println!(
+                "Creating interface {name}: mtu={mtu:?}, addresses={address:?}, vlan={vlan:?}, bridge={bridge:?}"
+            );
         }
         InterfaceCommands::Delete { name } => {
             println!("Deleting interface {name}");
@@ -102,10 +103,7 @@ async fn handle_firewall(cmd: FirewallCommands) -> anyhow::Result<()> {
         FirewallCommands::Flush => {
             println!("Flushing all rules");
         }
-        FirewallCommands::CreateZone {
-            name,
-            interfaces,
-        } => {
+        FirewallCommands::CreateZone { name, interfaces } => {
             println!("Creating zone {name} with interfaces {interfaces:?}");
         }
         FirewallCommands::SetPolicy {

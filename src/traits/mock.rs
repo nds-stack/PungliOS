@@ -1,8 +1,8 @@
 use anyhow::Result;
+use async_trait::async_trait;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::{Arc, RwLock};
-use async_trait::async_trait;
 
 use super::netlink::*;
 
@@ -34,7 +34,10 @@ impl MockBackend {
             mtu: 1500,
             up: true,
         };
-        self.interfaces.write().unwrap().insert(name.to_string(), iface);
+        self.interfaces
+            .write()
+            .unwrap()
+            .insert(name.to_string(), iface);
     }
 
     fn next_handle(&self) -> u64 {
@@ -70,7 +73,10 @@ impl NetlinkIfaces for MockBackend {
             mtu: config.mtu.unwrap_or(1500),
             up: true,
         };
-        self.interfaces.write().unwrap().insert(config.name.clone(), iface.clone());
+        self.interfaces
+            .write()
+            .unwrap()
+            .insert(config.name.clone(), iface.clone());
         Ok(iface)
     }
 
@@ -135,7 +141,10 @@ impl NetlinkFirewall for MockBackend {
     }
 
     async fn create_zone(&self, zone: &FirewallZone) -> Result<()> {
-        self.zones.write().unwrap().insert(zone.name.clone(), zone.clone());
+        self.zones
+            .write()
+            .unwrap()
+            .insert(zone.name.clone(), zone.clone());
         Ok(())
     }
 }
@@ -158,7 +167,10 @@ impl NetlinkQos for MockBackend {
     }
 
     async fn delete_class(&self, _iface: &str, classid: u32) -> Result<()> {
-        self.classes.write().unwrap().retain(|c| c.classid != classid);
+        self.classes
+            .write()
+            .unwrap()
+            .retain(|c| c.classid != classid);
         Ok(())
     }
 }
@@ -202,7 +214,10 @@ impl NetlinkNat for MockBackend {
     }
 
     async fn delete_rule(&self, handle: u64) -> Result<()> {
-        self.nat_rules.write().unwrap().retain(|r| r.handle != handle);
+        self.nat_rules
+            .write()
+            .unwrap()
+            .retain(|r| r.handle != handle);
         Ok(())
     }
 
@@ -221,9 +236,10 @@ impl NetlinkRoute for MockBackend {
     }
 
     async fn delete_route(&self, destination: IpAddr, prefix: u8) -> Result<()> {
-        self.routes.write().unwrap().retain(|r| {
-            r.destination != destination || r.prefix != prefix
-        });
+        self.routes
+            .write()
+            .unwrap()
+            .retain(|r| r.destination != destination || r.prefix != prefix);
         Ok(())
     }
 

@@ -1,13 +1,10 @@
 use punglios::{
-    firewall::nat::NatManager,
     firewall::FirewallManager,
+    firewall::nat::NatManager,
     net::iface::InterfaceManager,
     net::route::RouteManager,
     qos::QosManager,
-    traits::{
-        FirewallAction, FirewallRule, FirewallZone, InterfaceConfig, MockBackend,
-        Route,
-    },
+    traits::{FirewallAction, FirewallRule, FirewallZone, InterfaceConfig, MockBackend, Route},
 };
 
 fn setup_backend() -> MockBackend {
@@ -36,10 +33,7 @@ async fn test_full_network_setup() {
         .unwrap();
     assert_eq!(wan.name, "wan");
 
-    let lan = iface_mgr
-        .create_vlan("eth0", 100)
-        .await
-        .unwrap();
+    let lan = iface_mgr.create_vlan("eth0", 100).await.unwrap();
     assert_eq!(lan.name, "eth0.100");
 
     // 2. Create firewall zones
@@ -84,7 +78,10 @@ async fn test_full_network_setup() {
     assert!(handle > 0);
 
     // 4. Setup QoS
-    qos_mgr.create_htb_root("eth0.100", 1_000_000_000).await.unwrap();
+    qos_mgr
+        .create_htb_root("eth0.100", 1_000_000_000)
+        .await
+        .unwrap();
     qos_mgr
         .create_user_class("eth0.100", 0x10_01, 100_000_000, 100_000_000)
         .await

@@ -1,5 +1,5 @@
-use anyhow::{bail, Result};
 use crate::traits::{NatKind, NatRule, NetlinkNat};
+use anyhow::{Result, bail};
 
 pub struct NatManager<T: NetlinkNat> {
     backend: T,
@@ -103,7 +103,10 @@ mod tests {
         let mgr = setup();
         let dst: std::net::IpAddr = "10.0.0.1".parse().unwrap();
         let to: std::net::IpAddr = "192.168.1.100".parse().unwrap();
-        let handle = mgr.add_dnat("eth0", Some(dst), Some(to), Some(8080)).await.unwrap();
+        let handle = mgr
+            .add_dnat("eth0", Some(dst), Some(to), Some(8080))
+            .await
+            .unwrap();
         assert!(handle > 0);
     }
 

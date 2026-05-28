@@ -64,14 +64,13 @@ impl Transaction {
         match (&self.backup_path, &self.commit_path) {
             (Some(backup), Some(commit)) => {
                 if backup.exists() {
-                    fs::copy(backup, commit)
-                        .with_context(|| {
-                            format!(
-                                "failed to restore backup from {} to {}",
-                                backup.display(),
-                                commit.display()
-                            )
-                        })?;
+                    fs::copy(backup, commit).with_context(|| {
+                        format!(
+                            "failed to restore backup from {} to {}",
+                            backup.display(),
+                            commit.display()
+                        )
+                    })?;
                     fs::remove_file(backup)?;
                 } else if commit.exists() {
                     fs::remove_file(commit)?;

@@ -5,9 +5,7 @@ pub enum InterfaceCommands {
     /// List all interfaces
     List,
     /// Show interface details
-    Show {
-        name: String,
-    },
+    Show { name: String },
     /// Create a new interface
     Create {
         name: String,
@@ -21,30 +19,15 @@ pub enum InterfaceCommands {
         bridge: Option<String>,
     },
     /// Delete an interface
-    Delete {
-        name: String,
-    },
+    Delete { name: String },
     /// Set interface up
-    Up {
-        name: String,
-    },
+    Up { name: String },
     /// Set interface down
-    Down {
-        name: String,
-    },
+    Down { name: String },
     /// Set interface MTU
-    SetMtu {
-        name: String,
-        mtu: u16,
-    },
+    SetMtu { name: String, mtu: u16 },
     /// Create VLAN interface
-    Vlan {
-        parent: String,
-        vlan_id: u16,
-    },
+    Vlan { parent: String, vlan_id: u16 },
     /// Add interface to bridge
-    Bridge {
-        iface: String,
-        bridge: String,
-    },
+    Bridge { iface: String, bridge: String },
 }

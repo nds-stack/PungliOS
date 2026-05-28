@@ -10,8 +10,7 @@ pub fn save_binary(config: &NetworkConfig, path: &Path) -> Result<()> {
         fs::create_dir_all(parent)?;
     }
 
-    let bytes = bincode::serialize(config)
-        .context("failed to serialize config to bincode")?;
+    let bytes = bincode::serialize(config).context("failed to serialize config to bincode")?;
 
     fs::write(path, &bytes)
         .with_context(|| format!("failed to write binary config to {}", path.display()))?;
@@ -23,8 +22,8 @@ pub fn load_binary(path: &Path) -> Result<NetworkConfig> {
     let bytes = fs::read(path)
         .with_context(|| format!("failed to read binary config from {}", path.display()))?;
 
-    let config: NetworkConfig = bincode::deserialize(&bytes)
-        .context("failed to deserialize binary config")?;
+    let config: NetworkConfig =
+        bincode::deserialize(&bytes).context("failed to deserialize binary config")?;
 
     Ok(config)
 }

@@ -1,6 +1,6 @@
-use anyhow::{bail, Result};
-use std::net::IpAddr;
 use crate::traits::{NetlinkRoute, Route};
+use anyhow::{Result, bail};
+use std::net::IpAddr;
 
 pub struct RouteManager<T: NetlinkRoute> {
     backend: T,
@@ -77,8 +77,12 @@ mod tests {
             nexthop: None,
             iface: None,
             metric: None,
-        }).await.unwrap();
-        mgr.delete_route("10.0.0.0".parse().unwrap(), 24).await.unwrap();
+        })
+        .await
+        .unwrap();
+        mgr.delete_route("10.0.0.0".parse().unwrap(), 24)
+            .await
+            .unwrap();
         assert!(mgr.list_routes().await.unwrap().is_empty());
     }
 
@@ -91,13 +95,16 @@ mod tests {
     #[tokio::test]
     async fn test_invalid_prefix_rejected() {
         let mgr = setup();
-        let err = mgr.add_route(&Route {
-            destination: "10.0.0.0".parse().unwrap(),
-            prefix: 200,
-            nexthop: None,
-            iface: None,
-            metric: None,
-        }).await.unwrap_err();
+        let err = mgr
+            .add_route(&Route {
+                destination: "10.0.0.0".parse().unwrap(),
+                prefix: 200,
+                nexthop: None,
+                iface: None,
+                metric: None,
+            })
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("≤ 128"));
     }
 
@@ -118,14 +125,18 @@ mod tests {
             nexthop: None,
             iface: None,
             metric: None,
-        }).await.unwrap();
+        })
+        .await
+        .unwrap();
         mgr.add_route(&Route {
             destination: "172.16.0.0".parse().unwrap(),
             prefix: 16,
             nexthop: None,
             iface: None,
             metric: None,
-        }).await.unwrap();
+        })
+        .await
+        .unwrap();
         assert_eq!(mgr.list_routes().await.unwrap().len(), 2);
     }
 }
