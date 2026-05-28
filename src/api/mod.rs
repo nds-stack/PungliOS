@@ -598,7 +598,7 @@ async fn update_package(
             .map(|v| v as u32)
             .or(pkg.session_timeout),
     };
-    match s.user_mgr.create_package(updated).await {
+    match s.user_mgr.update_package(&updated).await {
         Ok(_) => ok(),
         Err(e) => err(e.to_string()),
     }

@@ -16,6 +16,7 @@ pub trait UserBackend: Send + Sync {
 
     async fn create_package(&self, pkg: UserPackage) -> Result<()>;
     async fn get_package(&self, name: &str) -> Result<UserPackage>;
+    async fn update_package(&self, pkg: &UserPackage) -> Result<()>;
     async fn list_packages(&self) -> Result<Vec<UserPackage>>;
     async fn delete_package(&self, name: &str) -> Result<()>;
 
@@ -126,6 +127,16 @@ impl UserBackend for MockUserBackend {
         if packages.remove(name).is_none() {
             bail!("package '{name}' not found");
         }
+        Ok(())
+    }
+
+    async fn update_package(&self, pkg: &UserPackage) -> Result<()> {
+        pkg.validate().map_err(|e| anyhow::anyhow!("invalid package: {e}"))?;
+        let mut packages = self.packages.write().expect("lock poisoned");
+        if !packages.contains_key(&pkg.name) {
+            bail!("package '{}' not found", pkg.name);
+        }
+        packages.insert(pkg.name.clone(), pkg.clone());
         Ok(())
     }
 

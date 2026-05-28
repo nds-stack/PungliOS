@@ -52,6 +52,10 @@ impl<T: UserBackend> UserManager<T> {
         self.backend.get_package(name).await
     }
 
+    pub async fn update_package(&self, pkg: &UserPackage) -> Result<()> {
+        self.backend.update_package(pkg).await
+    }
+
     pub async fn list_packages(&self) -> Result<Vec<UserPackage>> {
         self.backend.list_packages().await
     }
