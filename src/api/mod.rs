@@ -70,6 +70,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/users/{username}", delete(delete_user))
         .route("/api/v1/packages", get(list_packages))
         .route("/api/v1/packages", post(create_package))
+        .route("/api/v1/packages/{name}", put(update_package))
         .route("/api/v1/packages/{name}", delete(delete_package))
         .route("/api/v1/health", get(health_check))
         .with_state(state)
@@ -474,6 +475,44 @@ async fn delete_package(
     Path(name): Path<String>,
 ) -> Json<serde_json::Value> {
     match s.user_mgr.delete_package(&name).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+async fn update_package(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let pkg = match s.user_mgr.get_package(&name).await {
+        Ok(p) => p,
+        Err(e) => return err(e.to_string()),
+    };
+    let profiles: Vec<crate::user::types::BandwidthProfile> = body["profiles"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| {
+                    Some(crate::user::types::BandwidthProfile {
+                        name: v["name"].as_str()?.to_string(),
+                        upload_rate: v["upload_rate"].as_u64()?,
+                        download_rate: v["download_rate"].as_u64()?,
+                        upload_burst: v["upload_burst"].as_u64(),
+                        download_burst: v["download_burst"].as_u64(),
+                        priority: v["priority"].as_u64().unwrap_or(3) as u8,
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or(pkg.profiles);
+    let updated = crate::user::types::UserPackage {
+        name: body["name"].as_str().map(|s| s.to_string()).unwrap_or(name),
+        description: body["description"].as_str().map(|s| s.to_string()).unwrap_or(pkg.description),
+        profiles,
+        session_timeout: body["session_timeout"].as_u64().map(|v| v as u32).or(pkg.session_timeout),
+    };
+    match s.user_mgr.create_package(updated).await {
         Ok(_) => ok(),
         Err(e) => err(e.to_string()),
     }

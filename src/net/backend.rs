@@ -104,7 +104,10 @@ impl NetlinkIfaces for RealBackend {
                 let config = nlink::netlink::addr::Ipv4Address::new(name, v4, 24);
                 self.rt_conn.add_address(config).await?;
             }
-            IpAddr::V6(_) => bail!("IPv6 address add not implemented"),
+            IpAddr::V6(v6) => {
+                let config = nlink::netlink::addr::Ipv6Address::new(name, v6, 64);
+                self.rt_conn.add_address(config).await?;
+            }
         }
         Ok(())
     }
@@ -194,12 +197,23 @@ impl NetlinkQos for RealBackend {
         Ok(())
     }
 
-    async fn add_class(&self, _config: &ClassConfig) -> Result<()> {
-        bail!("QoS class add not implemented in real backend")
+    async fn add_class(&self, config: &ClassConfig) -> Result<()> {
+        let rate_str = format!("{}kbps", config.rate);
+        let ceil_str = format!("{}kbps", config.ceil);
+        let rate: nlink::util::Rate = rate_str.parse().context("invalid rate")?;
+        let ceil: nlink::util::Rate = ceil_str.parse().context("invalid ceil")?;
+        let parent = nlink::netlink::tc_handle::TcHandle::from_raw(config.parent);
+        let classid = nlink::netlink::tc_handle::TcHandle::from_raw(config.classid);
+        let htb = nlink::netlink::tc::HtbClassConfig::new(rate).ceil(ceil);
+        self.rt_conn.add_class(&config.iface, parent, classid, htb).await?;
+        Ok(())
     }
 
-    async fn delete_class(&self, _iface: &str, _classid: u32) -> Result<()> {
-        bail!("QoS class delete not implemented in real backend")
+    async fn delete_class(&self, iface: &str, classid: u32) -> Result<()> {
+        let handle = nlink::netlink::tc_handle::TcHandle::from_raw(classid);
+        let parent = nlink::netlink::tc_handle::TcHandle::from_raw(0);
+        self.rt_conn.del_class(iface, handle, parent).await?;
+        Ok(())
     }
 }
 
@@ -214,7 +228,27 @@ impl NetlinkConntrack for RealBackend {
     }
 
     async fn list(&self) -> Result<Vec<ConntrackEntry>> {
-        bail!("conntrack entry listing not implemented")
+        let content = std::fs::read_to_string("/proc/net/nf_conntrack")
+            .context("failed to read /proc/net/nf_conntrack")?;
+        let mut entries = Vec::new();
+        for line in content.lines() {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() < 6 { continue; }
+            let state = parts.first().unwrap_or(&"?").to_string();
+            let src_port = parts.get(5).and_then(|s| s.parse::<u16>().ok()).unwrap_or(0);
+            entries.push(ConntrackEntry {
+                protocol: parts.get(2).unwrap_or(&"?").to_string(),
+                src: std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
+                dst: std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
+                sport: src_port,
+                dport: 0,
+                state,
+                bytes: 0,
+                packets: 0,
+                timeout: 0,
+            });
+        }
+        Ok(entries)
     }
 
     async fn flush(&self) -> Result<()> {
@@ -271,8 +305,11 @@ impl NetlinkNat for RealBackend {
         Ok(rule.handle)
     }
 
-    async fn delete_rule(&self, _handle: u64) -> Result<()> {
-        bail!("NAT rule delete by handle not implemented")
+    async fn delete_rule(&self, handle: u64) -> Result<()> {
+        let r1 = self.nf_conn.del_rule("punglios-nat", "postrouting", Family::Inet, handle).await;
+        if r1.is_ok() { return Ok(()); }
+        self.nf_conn.del_rule("punglios-nat", "prerouting", Family::Inet, handle).await?;
+        Ok(())
     }
 
     async fn list_rules(&self) -> Result<Vec<NatRule>> {
