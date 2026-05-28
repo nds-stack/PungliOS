@@ -1,6 +1,6 @@
 # TODO.md — PungliOS Roadmap & Milestones
 
-> Status: 🟢 Phase 1 Complete
+> Status: 🟢 Phase 1 Complete | 🟢 Phase 2 Complete
 
 ---
 
@@ -43,7 +43,7 @@
 |---|------|----------|--------|----------|
 | 2.1 | PPPoE discovery (PADI/PADO/PADR/PADS/PADT) | PPPoE | 🟢 DONE | P0 |
 | 2.2 | PPP negotiation (LCP, IPCP, auth: PAP/CHAP/MS-CHAPv2) | PPPoE | 🟢 DONE | P0 |
-| 2.3 | Session management (kernel-mode pppX interfaces) | PPPoE | 🟡 WIP | P0 |
+| 2.3 | Session management (kernel-mode pppX interfaces) | PPPoE | 🟢 DONE | P0 |
 | 2.4 | RADIUS client (auth + accounting + CoA) | RADIUS | 🟢 DONE | P0 |
 | 2.5 | User management (CRUD, group/paket, bandwidth profile) | User Mgmt | 🟢 DONE | P1 |
 | 2.6 | DHCP server (DORA, IP pool, lease mgmt) | DHCP | 🟢 DONE | P1 |
@@ -164,22 +164,35 @@ Foundation (1.1)
 
 ---
 
-## Next Actions
+## Next Actions — Phase 1
 
-1. [x] **1.1** Setup project structure — `cargo init` + folder layout + common error types
-2. [x] **1.1a** Core traits + mock backend — define traits, build in-memory mock for all netlink ops
-3. [x] **1.2** Interface manager — list/create/delete iface, VLAN, bridge via traits (test on mock)
-4. [x] **1.3** nftables wrapper — apply zone-based firewall via traits (test on mock)
-5. [x] **1.4** tc QoS engine — HTB + fq_codel per-user class via traits (test on mock)
-6. [x] **1.5** Conntrack manager — auto-tuning via traits
-7. [x] **1.6** Config engine — YAML schema → bincode binary, transactional commit
-8. [x] **1.7** CLI — clap commands + ratatui interactive shell
-9. [x] **1.8** NAT manager — SNAT, DNAT, masquerade via traits
-10. [x] **1.9** Static routing — route table via traits
-11. [x] **1.10** Integration tests — 7 tests covering all managers
-12. [x] **1.11** Benchmarks — criterion bench for mock backend ops
-13. [x] **1.12** README + API docs — completed
+1. [x] **1.1** Setup project structure
+2. [x] **1.1a** Core traits + mock backend
+3. [x] **1.2** Interface manager
+4. [x] **1.3** nftables wrapper
+5. [x] **1.4** tc QoS engine
+6. [x] **1.5** Conntrack manager
+7. [x] **1.6** Config engine
+8. [x] **1.7** CLI
+9. [x] **1.8** NAT manager
+10. [x] **1.9** Static routing
+11. [x] **1.10** Integration tests
+12. [x] **1.11** Benchmarks
+13. [x] **1.12** README + API docs
+
+## Next Actions — Phase 2
+
+1. [x] **2.1** PPPoE discovery — packet encode/decode, PADI/PADO/PADR/PADS/PADT state machine
+2. [x] **2.2** PPP negotiation — LCP, PAP, CHAP, IPCP
+3. [x] **2.3** Session management — PppSession lifecycle
+4. [x] **2.4** RADIUS client — auth + accounting
+5. [x] **2.5** User management — CRUD, packages, bandwidth profiles
+6. [x] **2.6** DHCP server — DORA, IP pool, lease management
+7. [x] **2.7** DNS forwarder — cache + adblock
+8. [x] **2.8** Per-user bandwidth via RADIUS
+9. [x] **2.9** Integration tests
+10. [x] **2.10** Benchmarks
 
 ---
 
-*Last updated: 2026-05-28*
+*Last updated: 2026-05-29*

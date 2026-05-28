@@ -62,6 +62,7 @@ Config engine make YAML untuk manusia (biar bisa dibaca, beda sama APBN) dan bin
 | `RadiusSessionManager` | `start/stop_accounting`, `update_stats` | Catet pemakaian kayak Ditjen Pajak: masuk berapa, keluar berapa, durasi berapa |
 | `UserManager` | `create/get/update/delete user`, `assign_package`, `assign_ip/mac` | Data base user kayak database kependudukan — bedanya ini **beneran** akurat |
 | `DhcpServer` | Discover→Offer→Request→Ack, IP pool, lease, reserved IPs | Ngasih IP kayak bagi-bagi sembako: cuma ini gak perlu antri, langsung dapet |
+| `DnsForwarder` | `resolve_sync`, cache, adblock, wildcard blocking | DNS kayak sensor internet — domain yang "gak sesuai" langsung ditolak, yang lain diterusin ke upstream |
 
 ### Manager API Tambahan
 
@@ -71,6 +72,7 @@ Config engine make YAML untuk manusia (biar bisa dibaca, beda sama APBN) dan bin
 - **RadiusClient** — `authenticate(username, password, calling_station_id)` → `RadiusPacket`. `accounting_start/stop/interim(...)` — laporan pertanggungjawaban fiktif.
 - **UserManager** — CRUD user + package. `assign_package("budi", "silver")` — kasih paket kayak bagi jabatan.
 - **DhcpServer** — `handle_packet()` otomatis route Discover→Offer, Request→Ack. Pool IP: `192.168.1.100` sampai `.200`. Kayak lapak pasar — siapa cepat dia dapet, yang telat ya tunggu expired.
+- **DnsForwarder** — DNS server dengan cache TTL + adblock. `resolve_sync(query)` → response. Domain yang masuk blacklist dapet NXDOMAIN kayak situs diblokir Menkominfo. Wildcard pattern: `*.iklan.com`.
 
 ### CLI
 
@@ -80,7 +82,7 @@ punglios firewall <zone|rule> <list|get|create|delete|add-rule|remove-rule|flush
 punglios qos <attach|add-class|remove-class|list>
 punglios config <show|apply|commit|rollback|diff>
 punglios shell          # TUI — Dashboard, Interfaces, Firewall, QoS, Config, Logs
-punglios pppoe          # (TODO: Phase 2 CLI — discovery + session management)
+punglios pppoe          # (TODO: CLI — discovery + session management, masih manual)
 ```
 
 ---
@@ -105,6 +107,7 @@ PungliOS nangani error dengan integritas tinggi — beda sama e-KTP yang typo di
 - **PPPoE + RADIUS sudah jalan** — Rust-native PPPoE discovery (PADI/PADO/PADR/PADS/PADT), LCP/IPCP negotiation, PAP/CHAP auth, RADIUS client (auth + accounting). **Udah bisa konek, tinggal nyari duit.**
 - **DHCP server sudah jalan** — Discover→Offer→Request→Ack full DORA, IP pool management, lease tracking, reserved IPs. Kayak bagi-bagi sembako, cuma ini gak antri.
 - **User management sudah jalan** — CRUD user, paket/bandwidth profile, IP/MAC binding. Data base user yang **beneran** akurat — beda sama e-KTP.
+- **DNS forwarder sudah jalan** — Cache + adblock + wildcard blocking. Mirip sensor internet: domain yang masuk daftar hitam ditolak, yang lain lolos.
 - **REST API + Web UI** masih fase berikutnya. Sabar, ini bukan bansos.
 - **Single-node** — belum ada clustering. Kalo lu mau HA, colokin 2 router terus doa. Masih lebih canggih dari server KPU.
 - **Benchmark pake mock** — real benchmark butuh Linux deployment. Ini bukan hasil survei yang bisa dimanipulasi.
