@@ -1,0 +1,4 @@
+# Use LLVM linker (lld-link) instead of MSVC link.exe
+# Fixes conflict with Git's GNU link.exe in PATH
+[target.x86_64-pc-windows-msvc]
+linker = "C:/Users/Lenovo/.rustup/toolchains/stable-x86_64-pc-windows-msvc/lib/rustlib/x86_64-pc-windows-msvc/bin/gcc-ld/lld-link.exe"

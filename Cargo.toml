@@ -1,0 +1,60 @@
+[package]
+name = "punglios"
+version = "0.1.0"
+edition = "2024"
+description = "Rust-Native ISP/WISP Management Platform"
+authors = ["PungliOS Team"]
+
+[features]
+default = ["mock"]
+mock = []                              # In-memory mock backend (tests / Windows dev)
+real = ["dep:nftnl", "dep:nlink"]      # Production backend via netlink (Linux only)
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+ratatui = "0.29"
+
+# Config
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+rkyv = { version = "0.7", features = ["validation"] }
+
+# Serialization
+bincode = "1"
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Metrics
+metrics = "0.24"
+metrics-exporter-prometheus = "0.16"
+
+# Utilities
+futures = "0.3"
+uuid = { version = "1", features = ["v4"] }
+
+# Real backend: kernel interface (Linux only, optional)
+nftnl = { version = "0.9", optional = true }
+nlink = { version = "0.17", features = ["full"], optional = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
+criterion = { version = "0.5", features = ["async_tokio"] }
+tempfile = "3"
+
+[lib]
+name = "punglios"
+
+[[bench]]
+name = "traits"
+harness = false
