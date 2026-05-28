@@ -30,6 +30,10 @@ use clap as _;
 use futures as _;
 use metrics as _;
 use metrics_exporter_prometheus as _;
+#[cfg(feature = "real")]
+use nftnl as _;
+#[cfg(feature = "real")]
+use nlink as _;
 use ratatui as _;
 use rkyv as _;
 use serde as _;
