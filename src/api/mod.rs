@@ -12,6 +12,10 @@ use axum::{
 use std::sync::Arc;
 use tokio::sync::{Mutex, broadcast};
 
+/// Shared application state holding all manager instances.
+///
+/// Passed to every API handler via Axum's `State` extractor.
+/// All managers use mock backends by default for development/testing.
 #[derive(Clone)]
 pub struct AppState {
     pub iface_mgr: Arc<net::iface::InterfaceManager<MockBackend>>,
@@ -33,6 +37,7 @@ impl Default for AppState {
 }
 
 impl AppState {
+    /// Creates a new AppState with all mock backends initialized.
     pub fn new() -> Self {
         let backend = MockBackend::new();
         let user_backend = user::MockUserBackend::new();
@@ -57,6 +62,8 @@ impl AppState {
         }
     }
 
+    /// Spawns a background task that polls system stats every 2 seconds
+    /// and broadcasts them via the monitoring SSE channel.
     pub fn start_monitoring(&self) {
         let app = self.clone();
         let tx = self.monitoring_tx.clone();
@@ -66,6 +73,10 @@ impl AppState {
     }
 }
 
+/// Builds the Axum HTTP router with all API and monitoring routes.
+///
+/// Features 40+ endpoints covering: interfaces, firewall, NAT, routes,
+/// QoS, conntrack, users, packages, BGP, OSPF, WireGuard, monitoring, health.
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/api/v1/interfaces", get(handlers::list_interfaces))

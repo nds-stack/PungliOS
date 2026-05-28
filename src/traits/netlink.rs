@@ -5,6 +5,7 @@ use std::net::IpAddr;
 
 // ─── Interfaces ───────────────────────────────────────
 
+/// A network interface as reported by the kernel.
 #[derive(Debug, Clone, Serialize)]
 pub struct Interface {
     pub name: String,
@@ -15,6 +16,7 @@ pub struct Interface {
     pub up: bool,
 }
 
+/// Parameters for creating a new network interface.
 #[derive(Debug, Clone)]
 pub struct InterfaceConfig {
     pub name: String,
@@ -24,6 +26,7 @@ pub struct InterfaceConfig {
     pub bridge: Option<String>,
 }
 
+/// Backend trait for network interface operations.
 #[async_trait]
 pub trait NetlinkIfaces: Send + Sync {
     async fn list(&self) -> Result<Vec<Interface>>;
@@ -38,6 +41,7 @@ pub trait NetlinkIfaces: Send + Sync {
 
 // ─── Firewall / nftables ──────────────────────────────
 
+/// Action to take when a firewall rule matches.
 #[derive(Debug, Clone, Serialize)]
 pub enum FirewallAction {
     Accept,
@@ -46,6 +50,7 @@ pub enum FirewallAction {
     Jump(String),
 }
 
+/// A single firewall rule with zone, chain, and match criteria.
 #[derive(Debug, Clone, Serialize)]
 pub struct FirewallRule {
     pub handle: u64,
@@ -60,6 +65,7 @@ pub struct FirewallRule {
     pub position: u32,
 }
 
+/// A named firewall zone with its bound interfaces and default policies.
 #[derive(Debug, Clone, Serialize)]
 pub struct FirewallZone {
     pub name: String,
@@ -69,6 +75,7 @@ pub struct FirewallZone {
     pub output: Option<FirewallAction>,
 }
 
+/// Backend trait for nftables-based firewall operations.
 #[async_trait]
 pub trait NetlinkFirewall: Send + Sync {
     async fn list_rules(&self, zone: &str) -> Result<Vec<FirewallRule>>;
@@ -80,6 +87,7 @@ pub trait NetlinkFirewall: Send + Sync {
 
 // ─── QoS / tc ─────────────────────────────────────────
 
+/// Supported queuing disciplines.
 #[derive(Debug, Clone, Serialize)]
 pub enum QdiscKind {
     Htb,
@@ -87,6 +95,7 @@ pub enum QdiscKind {
     Cake,
 }
 
+/// Configuration for a qdisc on an interface.
 #[derive(Debug, Clone, Serialize)]
 pub struct QdiscConfig {
     pub kind: QdiscKind,
@@ -97,6 +106,7 @@ pub struct QdiscConfig {
     pub ceil: Option<u64>,
 }
 
+/// Configuration for a traffic class within a qdisc.
 #[derive(Debug, Clone, Serialize)]
 pub struct ClassConfig {
     pub iface: String,
@@ -109,6 +119,7 @@ pub struct ClassConfig {
     pub priority: u8,
 }
 
+/// Backend trait for tc (traffic control) operations.
 #[async_trait]
 pub trait NetlinkQos: Send + Sync {
     async fn add_qdisc(&self, config: &QdiscConfig) -> Result<()>;
@@ -117,21 +128,23 @@ pub trait NetlinkQos: Send + Sync {
     async fn delete_class(&self, iface: &str, classid: u32) -> Result<()>;
 }
 
-// ─── Connection Tracking ──────────────────────────────
+// ─── Conntrack ─────────────────────────────────────────
 
+/// A single conntrack entry tracking a network connection.
 #[derive(Debug, Clone, Serialize)]
 pub struct ConntrackEntry {
-    pub protocol: String,
     pub src: IpAddr,
     pub dst: IpAddr,
     pub sport: u16,
     pub dport: u16,
+    pub protocol: u8,
     pub state: String,
     pub bytes: u64,
     pub packets: u64,
     pub timeout: u32,
 }
 
+/// Backend trait for conntrack table operations.
 #[async_trait]
 pub trait NetlinkConntrack: Send + Sync {
     async fn count(&self) -> Result<usize>;
@@ -143,6 +156,7 @@ pub trait NetlinkConntrack: Send + Sync {
 
 // ─── NAT ──────────────────────────────────────────────
 
+/// A NAT rule translating source or destination addresses.
 #[derive(Debug, Clone, Serialize)]
 pub struct NatRule {
     pub handle: u64,
@@ -154,6 +168,7 @@ pub struct NatRule {
     pub to_port: Option<u16>,
 }
 
+/// Type of NAT translation.
 #[derive(Debug, Clone, Serialize)]
 pub enum NatKind {
     Snat,
@@ -161,6 +176,7 @@ pub enum NatKind {
     Masquerade,
 }
 
+/// Backend trait for NAT rule operations.
 #[async_trait]
 pub trait NetlinkNat: Send + Sync {
     async fn add_rule(&self, rule: &NatRule) -> Result<u64>;
@@ -170,6 +186,7 @@ pub trait NetlinkNat: Send + Sync {
 
 // ─── Routing ──────────────────────────────────────────
 
+/// A static or dynamic route entry.
 #[derive(Debug, Clone, Serialize)]
 pub struct Route {
     pub destination: IpAddr,
@@ -179,6 +196,7 @@ pub struct Route {
     pub metric: Option<u32>,
 }
 
+/// Backend trait for static route operations.
 #[async_trait]
 pub trait NetlinkRoute: Send + Sync {
     async fn add_route(&self, route: &Route) -> Result<()>;

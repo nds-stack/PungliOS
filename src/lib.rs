@@ -30,12 +30,12 @@ pub mod prelude {
     pub use crate::traits::*;
 }
 
+use argon2 as _;
 #[cfg(feature = "api")]
 use axum as _;
 use bincode as _;
 use clap as _;
 use futures as _;
-use hex as _;
 use metrics as _;
 use metrics_exporter_prometheus as _;
 #[cfg(feature = "real")]
@@ -47,7 +47,6 @@ use rkyv as _;
 use serde as _;
 use serde_json as _;
 use serde_yaml as _;
-use sha2 as _;
 #[cfg(feature = "web")]
 use tera as _;
 use thiserror as _;

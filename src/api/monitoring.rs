@@ -7,9 +7,17 @@ use axum::{
 };
 use futures::stream::Stream;
 use std::convert::Infallible;
+use std::sync::Mutex;
 use tokio::sync::broadcast;
 use tokio_stream::StreamExt;
 use tokio_stream::wrappers::BroadcastStream;
+
+struct CpuSnapshot {
+    prev_total: u64,
+    prev_idle: u64,
+}
+
+static CPU_STATE: Mutex<Option<CpuSnapshot>> = Mutex::new(None);
 
 pub(crate) async fn collect_monitoring_data(s: &AppState) -> serde_json::Value {
     let (cpu, mem_total, mem_used, uptime_secs) = get_system_info();
@@ -64,6 +72,30 @@ pub(crate) async fn monitoring_stream(
     )
 }
 
+fn read_proc_stat() -> Option<(u64, u64)> {
+    let s = std::fs::read_to_string("/proc/stat").ok()?;
+    let line = s.lines().next()?;
+    let parts: Vec<&str> = line.split_whitespace().collect();
+    if parts.len() < 5 {
+        return None;
+    }
+    let total: u64 = parts[1..]
+        .iter()
+        .filter_map(|p| p.parse::<u64>().ok())
+        .sum();
+    let idle: u64 = parts[4].parse().ok()?;
+    Some((total, idle))
+}
+
+fn compute_cpu_percent(total: u64, idle: u64, prev_total: u64, prev_idle: u64) -> f64 {
+    let dtotal = total.saturating_sub(prev_total);
+    let didle = idle.saturating_sub(prev_idle);
+    if dtotal == 0 {
+        return 0.0;
+    }
+    100.0 * (1.0 - didle as f64 / dtotal as f64)
+}
+
 pub(crate) fn get_system_info() -> (f64, u64, u64, u64) {
     let mut uptime = 0u64;
     let mut mem_total = 0u64;
@@ -93,19 +125,16 @@ pub(crate) fn get_system_info() -> (f64, u64, u64, u64) {
             .unwrap_or(0);
         mem_used = mem_total.saturating_sub(mem_avail);
 
-        cpu = std::fs::read_to_string("/proc/stat")
-            .ok()
-            .and_then(|s| {
-                let line = s.lines().next()?;
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                let total: u64 = parts[1..]
-                    .iter()
-                    .filter_map(|p| p.parse::<u64>().ok())
-                    .sum();
-                let idle: u64 = parts[4].parse().ok()?;
-                Some(100.0 * (1.0 - idle as f64 / total as f64))
-            })
-            .unwrap_or(0.0);
+        if let Some((total, idle)) = read_proc_stat() {
+            let mut state = CPU_STATE.lock().unwrap();
+            if let Some(prev) = state.as_ref() {
+                cpu = compute_cpu_percent(total, idle, prev.prev_total, prev.prev_idle);
+            }
+            *state = Some(CpuSnapshot {
+                prev_total: total,
+                prev_idle: idle,
+            });
+        }
     }
 
     (cpu, mem_total, mem_used, uptime)

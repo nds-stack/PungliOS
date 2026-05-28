@@ -1,12 +1,22 @@
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier, password_hash::SaltString};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::net::Ipv4Addr;
 
 fn hash_password(plain: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(plain.as_bytes());
-    let result = hasher.finalize();
-    hex::encode(result)
+    let salt = SaltString::generate(&mut argon2::password_hash::rand_core::OsRng);
+    Argon2::default()
+        .hash_password(plain.as_bytes(), &salt)
+        .expect("argon2 hashing failed")
+        .to_string()
+}
+
+fn verify_password(hash: &str, plain: &str) -> bool {
+    match PasswordHash::new(hash) {
+        Ok(parsed) => Argon2::default()
+            .verify_password(plain.as_bytes(), &parsed)
+            .is_ok(),
+        Err(_) => false,
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -74,7 +84,7 @@ impl User {
     }
 
     pub fn verify_password(&self, plain: &str) -> bool {
-        self.password_hash == hash_password(plain)
+        verify_password(&self.password_hash, plain)
     }
 
     pub fn validate(&self) -> Result<(), String> {

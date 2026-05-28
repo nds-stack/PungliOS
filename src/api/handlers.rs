@@ -324,10 +324,12 @@ pub(crate) async fn delete_class(
 
 pub(crate) async fn get_conntrack_stats(State(s): State<AppState>) -> Json<serde_json::Value> {
     let ct = s.ct_mgr.lock().await;
+    let count = ct.count().await.unwrap_or(0);
+    let max = ct.max();
     Json(serde_json::json!({
-        "count": ct.count().await.unwrap_or(0),
-        "max": ct.max(),
-        "usage_ratio": ct.usage_ratio(ct.count().await.unwrap_or(0)),
+        "count": count,
+        "max": max,
+        "usage_ratio": ct.usage_ratio(count),
     }))
 }
 
@@ -365,12 +367,13 @@ pub(crate) async fn get_bandwidth(State(s): State<AppState>) -> Json<serde_json:
 
 pub(crate) async fn get_system_stats(State(s): State<AppState>) -> Json<serde_json::Value> {
     let (cpu, mem_total, mem_used, uptime_secs) = crate::api::monitoring::get_system_info();
+    let ct = s.ct_mgr.lock().await;
     Json(serde_json::json!({
         "cpu_percent": cpu,
         "memory": { "total_mb": mem_total, "used_mb": mem_used },
         "uptime_secs": uptime_secs,
-        "conntrack_count": s.ct_mgr.lock().await.count().await.unwrap_or(0),
-        "conntrack_max": s.ct_mgr.lock().await.max(),
+        "conntrack_count": ct.count().await.unwrap_or(0),
+        "conntrack_max": ct.max(),
     }))
 }
 
@@ -402,6 +405,9 @@ pub(crate) async fn create_user(
     if let Some(p) = body["password"].as_str() {
         user.set_password(p);
     }
+    if let Err(e) = user.validate() {
+        return err(e);
+    }
     match s.user_mgr.create_user(user).await {
         Ok(_) => ok(),
         Err(e) => err(e.to_string()),
@@ -425,6 +431,9 @@ pub(crate) async fn update_user(
     }
     if let Some(p) = body["package_name"].as_str() {
         user.package_name = Some(p.to_string());
+    }
+    if let Err(e) = user.validate() {
+        return err(e);
     }
     match s.user_mgr.update_user(&user).await {
         Ok(_) => ok(),
