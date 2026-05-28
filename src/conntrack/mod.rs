@@ -3,6 +3,7 @@ pub mod tuning;
 
 use crate::traits::{ConntrackEntry, NetlinkConntrack};
 use anyhow::{Result, bail};
+use std::fmt;
 
 pub const MAX_CONNTRACK_DEFAULT: u32 = 262_144;
 pub const BUCKETS_DEFAULT: u32 = 65_536;
@@ -11,6 +12,16 @@ pub struct ConntrackManager<T: NetlinkConntrack> {
     backend: T,
     max: u32,
     buckets: u32,
+}
+
+impl<T: NetlinkConntrack + fmt::Debug> fmt::Debug for ConntrackManager<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ConntrackManager")
+            .field("backend", &self.backend)
+            .field("max", &self.max)
+            .field("buckets", &self.buckets)
+            .finish()
+    }
 }
 
 impl<T: NetlinkConntrack> ConntrackManager<T> {

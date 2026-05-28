@@ -1,8 +1,17 @@
 use crate::traits::{Interface, InterfaceConfig, NetlinkIfaces};
 use anyhow::{Result, bail};
+use std::fmt;
 
 pub struct InterfaceManager<T: NetlinkIfaces> {
     backend: T,
+}
+
+impl<T: NetlinkIfaces + fmt::Debug> fmt::Debug for InterfaceManager<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("InterfaceManager")
+            .field("backend", &self.backend)
+            .finish()
+    }
 }
 
 impl<T: NetlinkIfaces> InterfaceManager<T> {

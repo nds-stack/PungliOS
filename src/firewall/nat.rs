@@ -1,8 +1,17 @@
 use crate::traits::{NatKind, NatRule, NetlinkNat};
 use anyhow::{Result, bail};
+use std::fmt;
 
 pub struct NatManager<T: NetlinkNat> {
     backend: T,
+}
+
+impl<T: NetlinkNat + fmt::Debug> fmt::Debug for NatManager<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("NatManager")
+            .field("backend", &self.backend)
+            .finish()
+    }
 }
 
 impl<T: NetlinkNat> NatManager<T> {

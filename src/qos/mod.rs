@@ -4,9 +4,18 @@ pub mod htb;
 
 use crate::traits::{ClassConfig, NetlinkQos, QdiscConfig, QdiscKind};
 use anyhow::{Result, bail};
+use std::fmt;
 
 pub struct QosManager<T: NetlinkQos> {
     backend: T,
+}
+
+impl<T: NetlinkQos + fmt::Debug> fmt::Debug for QosManager<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("QosManager")
+            .field("backend", &self.backend)
+            .finish()
+    }
 }
 
 impl<T: NetlinkQos> QosManager<T> {

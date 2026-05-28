@@ -1,11 +1,12 @@
 use serde::{Deserialize, Serialize};
-use std::hash::{Hash, Hasher};
+use sha2::{Digest, Sha256};
 use std::net::Ipv4Addr;
 
 fn hash_password(plain: &str) -> String {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    plain.hash(&mut hasher);
-    format!("{:016x}", hasher.finish())
+    let mut hasher = Sha256::new();
+    hasher.update(plain.as_bytes());
+    let result = hasher.finalize();
+    hex::encode(result)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

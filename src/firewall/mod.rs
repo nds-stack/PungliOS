@@ -5,9 +5,18 @@ pub mod zone;
 
 use crate::traits::{FirewallRule, FirewallZone, NetlinkFirewall};
 use anyhow::{Result, bail};
+use std::fmt;
 
 pub struct FirewallManager<T: NetlinkFirewall> {
     backend: T,
+}
+
+impl<T: NetlinkFirewall + fmt::Debug> fmt::Debug for FirewallManager<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FirewallManager")
+            .field("backend", &self.backend)
+            .finish()
+    }
 }
 
 impl<T: NetlinkFirewall> FirewallManager<T> {

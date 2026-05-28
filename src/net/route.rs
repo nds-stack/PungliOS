@@ -1,9 +1,18 @@
 use crate::traits::{NetlinkRoute, Route};
 use anyhow::{Result, bail};
+use std::fmt;
 use std::net::IpAddr;
 
 pub struct RouteManager<T: NetlinkRoute> {
     backend: T,
+}
+
+impl<T: NetlinkRoute + fmt::Debug> fmt::Debug for RouteManager<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RouteManager")
+            .field("backend", &self.backend)
+            .finish()
+    }
 }
 
 impl<T: NetlinkRoute> RouteManager<T> {
