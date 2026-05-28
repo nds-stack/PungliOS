@@ -131,7 +131,8 @@ impl UserBackend for MockUserBackend {
     }
 
     async fn update_package(&self, pkg: &UserPackage) -> Result<()> {
-        pkg.validate().map_err(|e| anyhow::anyhow!("invalid package: {e}"))?;
+        pkg.validate()
+            .map_err(|e| anyhow::anyhow!("invalid package: {e}"))?;
         let mut packages = self.packages.write().expect("lock poisoned");
         if !packages.contains_key(&pkg.name) {
             bail!("package '{}' not found", pkg.name);
