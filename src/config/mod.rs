@@ -144,6 +144,9 @@ impl ConfigEngine {
         {
             tracing::warn!("failed to load YAML config: {e}, using defaults");
         }
+        if !self.yaml_path.exists() && !self.binary_path.exists() {
+            tracing::warn!("no config files found, using defaults");
+        }
     }
 }
 

@@ -440,10 +440,27 @@ async fn create_package(
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
     let name = body["name"].as_str().unwrap_or("pkg").to_string();
+    let profiles: Vec<crate::user::types::BandwidthProfile> = body["profiles"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| {
+                    Some(crate::user::types::BandwidthProfile {
+                        name: v["name"].as_str()?.to_string(),
+                        upload_rate: v["upload_rate"].as_u64()?,
+                        download_rate: v["download_rate"].as_u64()?,
+                        upload_burst: v["upload_burst"].as_u64(),
+                        download_burst: v["download_burst"].as_u64(),
+                        priority: v["priority"].as_u64().unwrap_or(3) as u8,
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     let pkg = crate::user::types::UserPackage {
         name,
         description: body["description"].as_str().unwrap_or("").to_string(),
-        profiles: vec![],
+        profiles,
         session_timeout: body["session_timeout"].as_u64().map(|v| v as u32),
     };
     match s.user_mgr.create_package(pkg).await {
