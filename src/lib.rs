@@ -17,6 +17,7 @@ pub mod net;
 pub mod pppoe;
 pub mod qos;
 pub mod traits;
+pub mod user;
 
 pub mod prelude {
     pub use crate::traits::*;

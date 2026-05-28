@@ -695,6 +695,119 @@ impl<B: RadiusBackend> RadiusSessionManager<B> {
     }
 }
 
+pub const VENDOR_MIKROTIK: u32 = 14988;
+pub const ATTR_MIKROTIK_RATE_LIMIT: u8 = 8;
+pub const ATTR_VENDOR_SPECIFIC: u8 = 26;
+pub const ATTR_WISPR_BANDWIDTH_MAX_UP: u8 = 102;
+pub const ATTR_WISPR_BANDWIDTH_MAX_DOWN: u8 = 103;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct BandwidthLimit {
+    pub upload_rate: u64,
+    pub download_rate: u64,
+    pub upload_burst: Option<u64>,
+    pub download_burst: Option<u64>,
+    pub priority: u8,
+}
+
+pub fn parse_mikrotik_rate_limit(raw: &str) -> Option<BandwidthLimit> {
+    let parts: Vec<&str> = raw.split_whitespace().collect();
+    if parts.is_empty() {
+        return None;
+    }
+    let rates: Vec<&str> = parts[0].split('/').collect();
+    let upload_rate = rates.first().and_then(|s| parse_bandwidth_value(s))?;
+    let download_rate = rates.get(1).and_then(|s| parse_bandwidth_value(s))?;
+
+    let mut upload_burst: Option<u64> = None;
+    let mut download_burst: Option<u64> = None;
+    let mut priority: u8 = 8;
+
+    if parts.len() >= 2 {
+        let bursts: Vec<&str> = parts[1].split('/').collect();
+        upload_burst = bursts.first().and_then(|s| parse_bandwidth_value(s));
+        download_burst = bursts.get(1).and_then(|s| parse_bandwidth_value(s));
+    }
+
+    if parts.len() >= 3 {
+        priority = parts[2].parse().unwrap_or(8);
+    }
+
+    if upload_rate == 0 && download_rate == 0 {
+        return None;
+    }
+
+    Some(BandwidthLimit {
+        upload_rate,
+        download_rate,
+        upload_burst,
+        download_burst,
+        priority: priority.min(7),
+    })
+}
+
+fn parse_bandwidth_value(s: &str) -> Option<u64> {
+    let s = s.trim().to_lowercase();
+    if s.is_empty() || s == "0" {
+        return Some(0);
+    }
+    if let Ok(val) = s.parse::<u64>() {
+        return Some(val);
+    }
+    if let Some(rest) = s.strip_suffix('k') {
+        return rest.parse::<u64>().ok();
+    }
+    if let Some(rest) = s.strip_suffix('m') {
+        return rest.parse::<u64>().ok().map(|v| v * 1000);
+    }
+    if let Some(rest) = s.strip_suffix('g') {
+        return rest.parse::<u64>().ok().map(|v| v * 1000 * 1000);
+    }
+    None
+}
+
+pub fn parse_bandwidth_from_response(
+    packet: &RadiusPacket,
+) -> Vec<crate::user::types::BandwidthProfile> {
+    let mut profiles = Vec::new();
+
+    for attr in &packet.attributes {
+        if attr.attr_type == ATTR_FILTER_ID
+            && let Ok(s) = String::from_utf8(attr.value.clone())
+        {
+            let parts: Vec<&str> = s.splitn(2, ':').collect();
+            if parts.len() == 2
+                && parts[0].eq_ignore_ascii_case("rate-limit")
+                && let Some(limit) = parse_mikrotik_rate_limit(parts[1])
+            {
+                profiles.push(crate::user::types::BandwidthProfile {
+                    name: format!("radius-rate-limit-{}", profiles.len()),
+                    upload_rate: limit.upload_rate,
+                    download_rate: limit.download_rate,
+                    upload_burst: limit.upload_burst,
+                    download_burst: limit.download_burst,
+                    priority: limit.priority,
+                });
+            }
+        }
+    }
+
+    let max_up = packet.find_attr_u32(ATTR_WISPR_BANDWIDTH_MAX_UP);
+    let max_down = packet.find_attr_u32(ATTR_WISPR_BANDWIDTH_MAX_DOWN);
+    if let (Some(up), Some(down)) = (max_up, max_down) {
+        profiles.push(crate::user::types::BandwidthProfile {
+            name: "radius-wispr".into(),
+            upload_rate: up as u64,
+            download_rate: down as u64,
+            upload_burst: None,
+            download_burst: None,
+            priority: 3,
+        });
+    }
+
+    profiles
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -910,5 +1023,95 @@ mod tests {
         let (decoded, _) = RadiusAttribute::decode(&encoded).unwrap();
         assert_eq!(decoded.attr_type, ATTR_FILTER_ID);
         assert_eq!(decoded.value, vec![0x01, 0x02, 0x03]);
+    }
+
+    // ─── Bandwidth Parsing Tests ──────────────────────
+
+    #[test]
+    fn test_parse_mikrotik_rate_limit_simple() {
+        let limit = parse_mikrotik_rate_limit("10M/10M").unwrap();
+        assert_eq!(limit.upload_rate, 10000);
+        assert_eq!(limit.download_rate, 10000);
+        assert_eq!(limit.priority, 8);
+    }
+
+    #[test]
+    fn test_parse_mikrotik_rate_limit_with_burst() {
+        let limit = parse_mikrotik_rate_limit("50M/100M 5M/10M").unwrap();
+        assert_eq!(limit.upload_rate, 50000);
+        assert_eq!(limit.download_rate, 100000);
+        assert_eq!(limit.upload_burst.unwrap(), 5000);
+        assert_eq!(limit.download_burst.unwrap(), 10000);
+    }
+
+    #[test]
+    fn test_parse_mikrotik_rate_limit_with_priority() {
+        let limit = parse_mikrotik_rate_limit("20M/20M 2M/2M 3").unwrap();
+        assert_eq!(limit.upload_rate, 20000);
+        assert_eq!(limit.priority, 3);
+    }
+
+    #[test]
+    fn test_parse_mikrotik_rate_limit_zero() {
+        let result = parse_mikrotik_rate_limit("0/0");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_parse_mikrotik_rate_limit_kbps() {
+        let limit = parse_mikrotik_rate_limit("512k/1M").unwrap();
+        assert_eq!(limit.upload_rate, 512);
+        assert_eq!(limit.download_rate, 1000);
+    }
+
+    #[test]
+    fn test_parse_bandwidth_value_raw() {
+        assert_eq!(parse_bandwidth_value("10000").unwrap(), 10000);
+        assert_eq!(parse_bandwidth_value("0").unwrap(), 0);
+    }
+
+    #[test]
+    fn test_parse_bandwidth_value_suffixes() {
+        assert_eq!(parse_bandwidth_value("100k").unwrap(), 100);
+        assert_eq!(parse_bandwidth_value("10m").unwrap(), 10000);
+        assert_eq!(parse_bandwidth_value("1g").unwrap(), 1000000);
+    }
+
+    #[test]
+    fn test_parse_bandwidth_from_wispr_attributes() {
+        let mut pkt = RadiusPacket::new(ACCESS_ACCEPT, 1);
+        pkt.attributes
+            .push(RadiusAttribute::new_u32(ATTR_WISPR_BANDWIDTH_MAX_UP, 50000));
+        pkt.attributes.push(RadiusAttribute::new_u32(
+            ATTR_WISPR_BANDWIDTH_MAX_DOWN,
+            100000,
+        ));
+
+        let profiles = parse_bandwidth_from_response(&pkt);
+        assert_eq!(profiles.len(), 1);
+        assert_eq!(profiles[0].upload_rate, 50000);
+        assert_eq!(profiles[0].download_rate, 100000);
+        assert_eq!(profiles[0].name, "radius-wispr");
+    }
+
+    #[test]
+    fn test_parse_bandwidth_from_filter_id() {
+        let mut pkt = RadiusPacket::new(ACCESS_ACCEPT, 1);
+        let val = "rate-limit:50M/100M 5M/10M 3";
+        pkt.attributes
+            .push(RadiusAttribute::new_string(ATTR_FILTER_ID, val));
+
+        let profiles = parse_bandwidth_from_response(&pkt);
+        assert_eq!(profiles.len(), 1);
+        assert_eq!(profiles[0].upload_rate, 50000);
+        assert_eq!(profiles[0].download_rate, 100000);
+        assert_eq!(profiles[0].priority, 3);
+    }
+
+    #[test]
+    fn test_parse_bandwidth_no_attributes() {
+        let pkt = RadiusPacket::new(ACCESS_ACCEPT, 1);
+        let profiles = parse_bandwidth_from_response(&pkt);
+        assert!(profiles.is_empty());
     }
 }

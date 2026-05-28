@@ -45,11 +45,11 @@
 | 2.2 | PPP negotiation (LCP, IPCP, auth: PAP/CHAP/MS-CHAPv2) | PPPoE | 🟢 DONE | P0 |
 | 2.3 | Session management (kernel-mode pppX interfaces) | PPPoE | 🟡 WIP | P0 |
 | 2.4 | RADIUS client (auth + accounting + CoA) | RADIUS | 🟢 DONE | P0 |
-| 2.5 | User management (CRUD, group/paket, bandwidth profile) | User Mgmt | 🔴 TODO | P1 |
+| 2.5 | User management (CRUD, group/paket, bandwidth profile) | User Mgmt | 🟢 DONE | P1 |
 | 2.6 | DHCP server (Rust-native) | DHCP | 🔴 TODO | P1 |
 | 2.7 | DNS forwarder (cache + adblock) | DNS | 🔴 TODO | P2 |
-| 2.8 | Per-user bandwidth via RADIUS attributes | QoS | 🔴 TODO | P1 |
-| 2.9 | Integration tests (Phase 2 features) | Testing | 🔴 TODO | P0 |
+| 2.8 | Per-user bandwidth via RADIUS attributes | QoS | 🟢 DONE | P1 |
+| 2.9 | Integration tests (Phase 2 features) | Testing | 🟡 WIP | P0 |
 | 2.10 | Benchmarks (PPPoE session scale) | Performance | 🔴 TODO | P1 |
 
 **Success Metrics:**

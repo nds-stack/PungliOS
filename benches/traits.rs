@@ -51,7 +51,7 @@ fn bench_mock_backend(c: &mut Criterion) {
                         src_port: None,
                         dst_port: Some(443),
                         action: FirewallAction::Accept,
-                        positions: 0,
+                        position: 0,
                     },
                 )
                 .await
@@ -88,7 +88,7 @@ fn bench_mock_backend(c: &mut Criterion) {
                             src_port: None,
                             dst_port: Some((i % 65535) as u16),
                             action: FirewallAction::Accept,
-                            positions: 0,
+                            position: 0,
                         },
                     )
                     .await

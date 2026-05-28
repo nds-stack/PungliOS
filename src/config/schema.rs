@@ -111,6 +111,10 @@ pub struct NetworkConfig {
     pub routes: Vec<RouteDef>,
     #[serde(default)]
     pub conntrack: ConntrackDef,
+    #[serde(default)]
+    pub users: Vec<crate::user::types::User>,
+    #[serde(default)]
+    pub packages: Vec<crate::user::types::UserPackage>,
 }
 
 impl Default for NetworkConfig {
@@ -126,6 +130,8 @@ impl Default for NetworkConfig {
                 max: default_conntrack_max(),
                 buckets: default_conntrack_buckets(),
             },
+            users: vec![],
+            packages: vec![],
         }
     }
 }
