@@ -126,12 +126,16 @@ impl ConfigEngine {
         } else if self.binary_path.exists() {
             if let Err(e) = self.load_binary() {
                 tracing::warn!("failed to load binary config: {e}, trying YAML");
-                if self.yaml_path.exists() {
-                    let _ = self.load_yaml();
+                if self.yaml_path.exists()
+                    && let Err(e) = self.load_yaml()
+                {
+                    tracing::warn!("failed to load YAML config: {e}, using defaults");
                 }
             }
-        } else if self.yaml_path.exists() {
-            let _ = self.load_yaml();
+        } else if self.yaml_path.exists()
+            && let Err(e) = self.load_yaml()
+        {
+            tracing::warn!("failed to load YAML config: {e}, using defaults");
         }
     }
 }

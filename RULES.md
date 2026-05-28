@@ -83,9 +83,7 @@ Rust/PungliOS/
 │   ├── qos.rs
 │   └── conntrack.rs
 │
-└── examples/
-    ├── basic_router.rs
-    └── pppoe_server.rs
+└── examples/          # TBD — minimal examples planned
 ```
 
 ## Rust Conventions
@@ -243,9 +241,9 @@ nlink = { version = "0.17", features = ["full"], optional = true }
 tokio-test = "0.4"
 criterion = "0.5"
 
-[target.'cfg(target_os = "linux")'.dependencies]
-nftnl = { version = "0.9" }
-nlink = { version = "0.17", features = ["full"] }
+# NOTE: Real backend dependencies (nftnl, nlink) are behind the "real" feature flag.
+# See Cargo.toml for current dependency structure.
+# [target.'cfg(target_os = "linux")'.dependencies] — not used; uses optional = true instead
 ```
 
 ## Dependency Rules

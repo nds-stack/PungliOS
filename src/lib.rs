@@ -1,6 +1,6 @@
 #![deny(unused_crate_dependencies)]
 #![deny(unsafe_code)]
-#![warn(unreachable_pub, unused_imports)]
+#![deny(unreachable_pub, unused_imports)]
 
 #[cfg(test)]
 extern crate criterion;

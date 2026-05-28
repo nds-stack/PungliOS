@@ -71,7 +71,9 @@ impl Transaction {
                             commit.display()
                         )
                     })?;
-                    fs::remove_file(backup)?;
+                    if let Err(e) = fs::remove_file(backup) {
+                        tracing::warn!("failed to remove backup file {}: {e}", backup.display());
+                    }
                 } else if commit.exists() {
                     fs::remove_file(commit)?;
                 }

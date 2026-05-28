@@ -41,7 +41,7 @@ impl MockBackend {
     }
 
     fn next_handle(&self) -> u64 {
-        let mut h = self.next_handle.write().unwrap();
+        let mut h = self.next_handle.write().expect("lock poisoned");
         *h += 1;
         *h
     }
@@ -52,7 +52,7 @@ impl MockBackend {
 #[async_trait]
 impl NetlinkIfaces for MockBackend {
     async fn list(&self) -> Result<Vec<Interface>> {
-        Ok(self.interfaces.read().unwrap().values().cloned().collect())
+        Ok(self.interfaces.read().expect("lock poisoned").values().cloned().collect())
     }
 
     async fn get(&self, name: &str) -> Result<Interface> {
@@ -81,33 +81,33 @@ impl NetlinkIfaces for MockBackend {
     }
 
     async fn delete(&self, name: &str) -> Result<()> {
-        self.interfaces.write().unwrap().remove(name);
+        self.interfaces.write().expect("lock poisoned").remove(name);
         Ok(())
     }
 
     async fn set_up(&self, name: &str) -> Result<()> {
-        if let Some(iface) = self.interfaces.write().unwrap().get_mut(name) {
+        if let Some(iface) = self.interfaces.write().expect("lock poisoned").get_mut(name) {
             iface.up = true;
         }
         Ok(())
     }
 
     async fn set_down(&self, name: &str) -> Result<()> {
-        if let Some(iface) = self.interfaces.write().unwrap().get_mut(name) {
+        if let Some(iface) = self.interfaces.write().expect("lock poisoned").get_mut(name) {
             iface.up = false;
         }
         Ok(())
     }
 
     async fn set_mtu(&self, name: &str, mtu: u16) -> Result<()> {
-        if let Some(iface) = self.interfaces.write().unwrap().get_mut(name) {
+        if let Some(iface) = self.interfaces.write().expect("lock poisoned").get_mut(name) {
             iface.mtu = mtu;
         }
         Ok(())
     }
 
     async fn add_address(&self, name: &str, addr: IpAddr) -> Result<()> {
-        if let Some(iface) = self.interfaces.write().unwrap().get_mut(name) {
+        if let Some(iface) = self.interfaces.write().expect("lock poisoned").get_mut(name) {
             iface.addresses.push(addr);
         }
         Ok(())
@@ -119,24 +119,24 @@ impl NetlinkIfaces for MockBackend {
 #[async_trait]
 impl NetlinkFirewall for MockBackend {
     async fn list_rules(&self, _zone: &str) -> Result<Vec<FirewallRule>> {
-        Ok(self.rules.read().unwrap().clone())
+        Ok(self.rules.read().expect("lock poisoned").clone())
     }
 
     async fn add_rule(&self, rule: &FirewallRule) -> Result<u64> {
         let mut rule = rule.clone();
         rule.handle = self.next_handle();
         let handle = rule.handle;
-        self.rules.write().unwrap().push(rule);
+        self.rules.write().expect("lock poisoned").push(rule);
         Ok(handle)
     }
 
     async fn delete_rule(&self, handle: u64) -> Result<()> {
-        self.rules.write().unwrap().retain(|r| r.handle != handle);
+        self.rules.write().expect("lock poisoned").retain(|r| r.handle != handle);
         Ok(())
     }
 
     async fn flush_rules(&self) -> Result<()> {
-        self.rules.write().unwrap().clear();
+        self.rules.write().expect("lock poisoned").clear();
         Ok(())
     }
 
@@ -162,7 +162,7 @@ impl NetlinkQos for MockBackend {
     }
 
     async fn add_class(&self, config: &ClassConfig) -> Result<()> {
-        self.classes.write().unwrap().push(config.clone());
+        self.classes.write().expect("lock poisoned").push(config.clone());
         Ok(())
     }
 
@@ -180,15 +180,15 @@ impl NetlinkQos for MockBackend {
 #[async_trait]
 impl NetlinkConntrack for MockBackend {
     async fn count(&self) -> Result<usize> {
-        Ok(self.conntrack.read().unwrap().len())
+        Ok(self.conntrack.read().expect("lock poisoned").len())
     }
 
     async fn list(&self) -> Result<Vec<ConntrackEntry>> {
-        Ok(self.conntrack.read().unwrap().clone())
+        Ok(self.conntrack.read().expect("lock poisoned").clone())
     }
 
     async fn flush(&self) -> Result<()> {
-        self.conntrack.write().unwrap().clear();
+        self.conntrack.write().expect("lock poisoned").clear();
         Ok(())
     }
 
@@ -209,7 +209,7 @@ impl NetlinkNat for MockBackend {
         let mut rule = rule.clone();
         rule.handle = self.next_handle();
         let handle = rule.handle;
-        self.nat_rules.write().unwrap().push(rule);
+        self.nat_rules.write().expect("lock poisoned").push(rule);
         Ok(handle)
     }
 
@@ -222,7 +222,7 @@ impl NetlinkNat for MockBackend {
     }
 
     async fn list_rules(&self) -> Result<Vec<NatRule>> {
-        Ok(self.nat_rules.read().unwrap().clone())
+        Ok(self.nat_rules.read().expect("lock poisoned").clone())
     }
 }
 
@@ -231,7 +231,7 @@ impl NetlinkNat for MockBackend {
 #[async_trait]
 impl NetlinkRoute for MockBackend {
     async fn add_route(&self, route: &Route) -> Result<()> {
-        self.routes.write().unwrap().push(route.clone());
+        self.routes.write().expect("lock poisoned").push(route.clone());
         Ok(())
     }
 
@@ -244,7 +244,7 @@ impl NetlinkRoute for MockBackend {
     }
 
     async fn list_routes(&self) -> Result<Vec<Route>> {
-        Ok(self.routes.read().unwrap().clone())
+        Ok(self.routes.read().expect("lock poisoned").clone())
     }
 }
 
@@ -302,6 +302,6 @@ mod tests {
             priority: 3,
         };
         backend.add_class(&class).await.unwrap();
-        assert_eq!(backend.classes.read().unwrap().len(), 1);
+        assert_eq!(backend.classes.read().expect("lock poisoned").len(), 1);
     }
 }
