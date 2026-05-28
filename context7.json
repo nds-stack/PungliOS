@@ -1,0 +1,7 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "@nds-stack/punglios",
+  "description": "Rust-native ISP/WISP management platform with trait-based netlink abstraction, zone-based firewall, HTB+fq_codel QoS, and transactional config engine.",
+  "url": "https://context7.com/nds-stack/punglios",
+  "public_key": "pk_Zd1vpPPhPhvxg6ZjZWp5g"
+}

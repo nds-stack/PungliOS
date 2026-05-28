@@ -50,7 +50,7 @@ Rust/PungliOS/
 │   ├── config/        ← configuration engine (1.6)
 │   │   ├── mod.rs
 │   │   ├── schema.rs        # YAML schema + validation
-│   │   ├── storage.rs       # rkyv binary serialize
+│   │   ├── storage.rs       # bincode binary serialize
 │   │   └── transaction.rs   # Commit/rollback
 │   │
 │   ├── cli/           ← CLI interface (1.7)
@@ -71,17 +71,13 @@ Rust/PungliOS/
 │
 ├── tests/
 │   ├── integration/
-│   │   ├── interface.rs
-│   │   ├── firewall.rs
-│   │   ├── qos.rs
-│   │   └── config.rs
-│   └── common/
-│       └── mock.rs          # Shared mock setup
+│   │   └── test_all_managers.rs
+│   ├── common/
+│   │   └── mod.rs           # Shared mock setup
+│   └── tests.rs
 │
 ├── benches/
-│   ├── nftables.rs
-│   ├── qos.rs
-│   └── conntrack.rs
+│   └── traits.rs
 │
 └── examples/          # TBD — minimal examples planned
 ```

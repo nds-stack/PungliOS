@@ -66,7 +66,7 @@ Failure di satu komponen tidak boleh crash seluruh system:
 │  ← User-facing interfaces            │
 ├──────────────────────────────────────┤
 │         Control Plane                │
-│  Config Engine (YAML → rkyv)        │
+│  Config Engine (YAML → bincode)     │
 │  PPPoE Server + RADIUS (Phase 2)    │
 │  QoS Policy Engine                  │
 │  ← Business logic, orchestration     │
@@ -106,7 +106,7 @@ Core Traits (1.1a)
 |----------|--------|-----------|
 | Data plane | Linux kernel (nftables + tc) | No kernel bypass needed for <10 Gbps |
 | PPPoE | Rust-native (no Accel-PPP) | Full control, memory safety, no C |
-| Config format | YAML (human) + rkyv (runtime) | Readable + zero-copy fast |
+| Config format | YAML (human) + bincode (runtime) | Readable + type-safe binary |
 | IPC | tonic/gRPC + protobuf | Industry standard, streaming |
 | Mock backend | In-memory (HashMap + Vec) | Fast tests, no kernel required |
 | Async runtime | Tokio | Industry standard Rust async |
