@@ -38,6 +38,7 @@ async fn main() -> anyhow::Result<()> {
         #[cfg(feature = "api")]
         CliCommand::Serve { addr } => {
             let state = AppState::new();
+            state.start_monitoring();
             let app = punglios::api::router(state.clone());
 
             #[cfg(feature = "web")]

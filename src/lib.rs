@@ -49,6 +49,8 @@ use tera as _;
 use thiserror as _;
 use tokio as _;
 #[cfg(feature = "api")]
+use tokio_stream as _;
+#[cfg(feature = "api")]
 use tower as _;
 use tracing as _;
 use tracing_subscriber as _;

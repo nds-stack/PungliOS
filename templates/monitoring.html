@@ -2,49 +2,70 @@
 {% block content %}
 <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
   <div class="stat-card">
-    <p class="text-gray-400 text-sm">Bandwidth</p>
-    <p class="text-3xl font-bold mt-2" id="bandwidth-value">Loading...</p>
-    <p class="text-xs text-gray-500 mt-1">Current throughput</p>
+    <p class="text-gray-400 text-sm">CPU</p>
+    <p class="text-3xl font-bold mt-2" id="cpu-value">—</p>
+    <p class="text-xs text-gray-500 mt-1">Current usage</p>
+  </div>
+  <div class="stat-card">
+    <p class="text-gray-400 text-sm">Memory</p>
+    <p class="text-3xl font-bold mt-2" id="mem-value">—</p>
+    <p class="text-xs text-gray-500 mt-1">Used / Total</p>
   </div>
   <div class="stat-card">
     <p class="text-gray-400 text-sm">Conntrack</p>
-    <p class="text-3xl font-bold mt-2">{{ conntrack_count }}</p>
+    <p class="text-3xl font-bold mt-2" id="ct-value">—</p>
     <p class="text-xs text-gray-500 mt-1">Active connections</p>
-  </div>
-  <div class="stat-card">
-    <p class="text-gray-400 text-sm">System</p>
-    <p class="text-3xl font-bold mt-2" id="cpu-value">—</p>
-    <p class="text-xs text-gray-500 mt-1">CPU / Memory</p>
   </div>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
   <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
-    <h3 class="font-semibold text-sm uppercase tracking-wide text-gray-400 mb-4">Bandwidth Graph</h3>
-    <div hx-trigger="load delay:2s" hx-get="/api/v1/monitoring/bandwidth" hx-target="this" hx-swap="innerHTML" class="text-sm text-gray-500">
-      Loading bandwidth data...
+    <h3 class="font-semibold text-sm uppercase tracking-wide text-gray-400 mb-4">Interfaces</h3>
+    <div id="iface-list" class="space-y-2 text-sm">
+      <p class="text-gray-500">Waiting for data...</p>
     </div>
   </div>
   <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
-    <h3 class="font-semibold text-sm uppercase tracking-wide text-gray-400 mb-4">System Metrics</h3>
-    <div hx-trigger="load delay:2s" hx-get="/api/v1/monitoring/system" hx-target="this" hx-swap="innerHTML" class="text-sm text-gray-500">
-      Loading system metrics...
+    <h3 class="font-semibold text-sm uppercase tracking-wide text-gray-400 mb-4">System Info</h3>
+    <div id="sys-info" class="space-y-2 text-sm">
+      <div class="flex justify-between"><span class="text-gray-400">Uptime</span><span id="uptime-value">—</span></div>
+      <div class="flex justify-between"><span class="text-gray-400">Users</span><span id="users-value">—</span></div>
+      <div class="flex justify-between"><span class="text-gray-400">Status</span><span class="text-green-400">Live</span></div>
     </div>
   </div>
 </div>
 
 <div class="mt-5 bg-gray-800 rounded-xl p-5 border border-gray-700">
-  <h3 class="font-semibold text-sm uppercase tracking-wide text-gray-400 mb-4">Auto Refresh</h3>
-  <p class="text-sm text-gray-500">Monitoring data refreshes automatically every 5 seconds.</p>
-  <div class="flex gap-3 mt-3">
-    <button hx-get="/api/v1/monitoring/bandwidth" hx-target="#bandwidth-value" hx-swap="innerHTML" class="btn btn-primary btn-sm">Refresh Now</button>
-  </div>
+  <h3 class="font-semibold text-sm uppercase tracking-wide text-gray-400 mb-4">Data Flow</h3>
+  <p class="text-sm text-gray-500">Real-time updates via Server-Sent Events (SSE). Data refreshes every 2 seconds.</p>
 </div>
 
 <script>
-  setInterval(function() {
-    htmx.ajax('GET', '/api/v1/monitoring/bandwidth', {target: '#bandwidth-value', swap: 'innerHTML'});
-    htmx.ajax('GET', '/api/v1/monitoring/system', {target: '#cpu-value', swap: 'innerHTML'});
-  }, 5000);
+(function() {
+  var source = new EventSource('/api/v1/monitoring/stream');
+  source.onmessage = function(e) {
+    try {
+      var d = JSON.parse(e.data);
+      document.getElementById('cpu-value').textContent = (d.cpu_percent || 0).toFixed(1) + '%';
+      document.getElementById('mem-value').textContent = (d.memory ? d.memory.used_mb + ' / ' + d.memory.total_mb + ' MB' : '—');
+      document.getElementById('ct-value').textContent = d.conntrack ? d.conntrack.count + ' / ' + d.conntrack.max : '—';
+      document.getElementById('uptime-value').textContent = d.uptime_secs ? Math.floor(d.uptime_secs / 3600) + 'h ' + Math.floor((d.uptime_secs % 3600) / 60) + 'm' : '—';
+      document.getElementById('users-value').textContent = d.users || 0;
+
+      var ifaceHtml = '';
+      if (d.interfaces && d.interfaces.length > 0) {
+        d.interfaces.forEach(function(iface) {
+          ifaceHtml += '<div class="flex justify-between py-1 border-b border-gray-700 last:border-0"><span>' + iface.name + '</span><span class="' + (iface.up ? 'text-green-400' : 'text-red-400') + '">' + (iface.up ? 'UP' : 'DOWN') + ' · MTU ' + iface.mtu + '</span></div>';
+        });
+      } else {
+        ifaceHtml = '<p class="text-gray-500">No interfaces</p>';
+      }
+      document.getElementById('iface-list').innerHTML = ifaceHtml;
+    } catch(err) {}
+  };
+  source.onerror = function() {
+    document.getElementById('cpu-value').textContent = 'Disconnected';
+  };
+})();
 </script>
 {% endblock %}

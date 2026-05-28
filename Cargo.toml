@@ -13,7 +13,7 @@ features = ["api", "web", "mock"]
 default = ["mock"]
 mock = []                              # In-memory mock backend (tests / Windows dev)
 real = ["dep:nftnl", "dep:nlink"]      # Production backend via netlink (Linux only)
-api = ["dep:axum", "dep:tower"]
+api = ["dep:axum", "dep:tower", "dep:tokio-stream"]
 web = ["api", "dep:tera"]              # Web UI dashboard (includes API)
 
 [dependencies]
@@ -56,6 +56,7 @@ nlink = { version = "0.17", features = ["full"], optional = true }
 # HTTP API (optional)
 axum = { version = "0.8", optional = true }
 tower = { version = "0.5", optional = true }
+tokio-stream = { version = "0.1", features = ["sync"], optional = true }
 serde_json = "1"
 
 # Web UI (optional, requires api)

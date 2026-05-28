@@ -6,11 +6,16 @@ use crate::{conntrack, firewall, net, qos, user};
 use axum::{
     Json, Router,
     extract::{Path, State},
+    response::sse::{Event, Sse},
     routing::{delete, get, post, put},
 };
+use futures::stream::Stream;
+use std::convert::Infallible;
 use std::net::{IpAddr, Ipv4Addr};
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, broadcast};
+use tokio_stream::StreamExt;
+use tokio_stream::wrappers::BroadcastStream;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -21,6 +26,7 @@ pub struct AppState {
     pub qos_mgr: Arc<qos::QosManager<MockBackend>>,
     pub ct_mgr: Arc<Mutex<conntrack::ConntrackManager<MockBackend>>>,
     pub user_mgr: Arc<user::UserManager<user::MockUserBackend>>,
+    pub monitoring_tx: broadcast::Sender<String>,
 }
 
 impl Default for AppState {
@@ -33,6 +39,7 @@ impl AppState {
     pub fn new() -> Self {
         let backend = MockBackend::new();
         let user_backend = user::MockUserBackend::new();
+        let (monitoring_tx, _) = broadcast::channel(16);
         Self {
             iface_mgr: Arc::new(net::iface::InterfaceManager::new(backend.clone())),
             fw_mgr: Arc::new(firewall::FirewallManager::new(backend.clone())),
@@ -43,7 +50,16 @@ impl AppState {
                 backend.clone(),
             ))),
             user_mgr: Arc::new(user::UserManager::new(user_backend)),
+            monitoring_tx,
         }
+    }
+
+    pub fn start_monitoring(&self) {
+        let app = self.clone();
+        let tx = self.monitoring_tx.clone();
+        tokio::spawn(async move {
+            monitoring_loop(app, tx).await;
+        });
     }
 }
 
@@ -82,6 +98,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/health", get(health_check))
         .route("/api/v1/monitoring/bandwidth", get(get_bandwidth))
         .route("/api/v1/monitoring/system", get(get_system_stats))
+        .route("/api/v1/monitoring/stream", get(monitoring_stream))
         .with_state(state)
 }
 
@@ -637,4 +654,59 @@ async fn update_package(
         Ok(_) => ok(),
         Err(e) => err(e.to_string()),
     }
+}
+
+// ─── SSE Monitoring Stream ─────────────────────────────
+
+async fn collect_monitoring_data(s: &AppState) -> serde_json::Value {
+    let (cpu, mem_total, mem_used, uptime_secs) = get_system_info();
+    let mut ifaces = Vec::new();
+    if let Ok(list) = s.iface_mgr.list().await {
+        for iface in &list {
+            ifaces.push(serde_json::json!({
+                "name": iface.name,
+                "mtu": iface.mtu,
+                "up": iface.up,
+            }));
+        }
+    }
+    let ct = s.ct_mgr.lock().await;
+    let conntrack_count = ct.count().await.unwrap_or(0);
+    let conntrack_max = ct.max();
+    serde_json::json!({
+        "ts": std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs(),
+        "cpu_percent": cpu,
+        "memory": { "total_mb": mem_total, "used_mb": mem_used },
+        "uptime_secs": uptime_secs,
+        "conntrack": { "count": conntrack_count, "max": conntrack_max },
+        "interfaces": ifaces,
+        "users": s.user_mgr.user_count().await.unwrap_or(0),
+    })
+}
+
+async fn monitoring_loop(app: AppState, tx: broadcast::Sender<String>) {
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        let data = collect_monitoring_data(&app).await;
+        let msg = data.to_string();
+        let _ = tx.send(msg);
+    }
+}
+
+async fn monitoring_stream(
+    State(s): State<AppState>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let rx = s.monitoring_tx.subscribe();
+    let stream = BroadcastStream::new(rx).filter_map(|result| match result {
+        Ok(msg) => Some(Ok(Event::default().data(msg))),
+        Err(_) => None,
+    });
+    Sse::new(stream).keep_alive(
+        axum::response::sse::KeepAlive::new()
+            .interval(std::time::Duration::from_secs(15))
+            .text("keep-alive"),
+    )
 }
