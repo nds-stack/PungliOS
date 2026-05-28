@@ -1,221 +1,242 @@
-# PungliOS — Rust-native ISP/WISP Management Platform
+# PungliOS — Sistem Operasi Pungutan Liar untuk Jaringan ISP/WISP
 
-PungliOS is a high-performance Rust-native router management platform designed for ISPs and WISPs. It replaces proprietary solutions like MikroTik RouterOS with a modern, safe, and observable control plane built entirely in Rust.
+**"Kalo negara bisa pungli, kenapa router enggak?"**
 
-> **Status:** Phase 1 complete — core traits, managers, CLI/TUI, config engine, tests, benchmarks.
-> **Target:** Linux (x86_64, aarch64). No Windows/Mac support.
+PungliOS adalah platform manajemen jaringan ISP/WISP berbasis Rust yang terinspirasi dari budaya birokrasi Indonesia. Sama seperti pungutan liar yang efisien, transparan (kagak), dan selalu tepat sasaran (ke kantong sendiri) — PungliOS mengelola bandwidth, routing, dan QoS dengan ketegasan seorang oknum yang minta "uang rokok".
 
-## How It Works
+Bedanya? Kalo pungli bikin rakyat susah, PungliOS bikin **ISP untung besar** dengan infrastruktur open-source yang kenceng, stabil, dan zero toleransi terhadap *latency* — tapi toleransi tinggi terhadap sarkasme.
 
-PungliOS uses a three-plane architecture: Management Plane (CLI/TUI), Control Plane (config engine, business logic), and Data Plane (kernel interaction via traits). Every kernel interaction goes through a trait interface with two backends:
+> **Status:** Fase 1 selesai — core traits, manager, CLI/TUI, config engine, test, benchmark.
+> **Target:** Linux (x86_64, aarch64). *Buat Windows? Lu kira ini aplikasi pajak?*
 
-- **MockBackend** (in-memory, default) — enables testing on any platform without a Linux kernel
-- **RealBackend** (nftnl + nlink, feature `real`) — production backend that drives nftables, tc, and netlink sockets
+---
 
-The config engine (YAML human config -> bincode binary runtime) is the single source of truth. Changes are transactional with automatic rollback on failure.
+## Cara Kerja
+
+PungliOS pakai arsitektur tiga lapis yang mirip sistem birokrasi Indonesia:
+
+1. **Management Plane** (CLI + TUI) — tempat operator ngatur-ngatur, kayak pejabat yang bikin aturan
+2. **Control Plane** (config engine + business logic) — otak yang mutusin mana traffic yang "lolos" dan mana yang "dicegat", mirip penjaga pintu masuk kantor pemerintahan
+3. **Data Plane** (kernel Linux via netlink) — eksekutor lapangan, kayak satpol pp yang beneran narik
+
+Setiap interaksi sama kernel lewat **trait interface** dengan dua backend:
+
+- **MockBackend** (in-memory, default) — testing di mana aja, termasuk di Windows. Cocok buat "laporan proyek" yang belum jelas realisasinya.
+- **RealBackend** (nftnl + nlink, feature `real`) — produksi beneran. Kayak pejabat yang beneran kerja.
+
+Config engine make YAML untuk manusia (biar bisa dibaca, beda sama APBN) dan bincode binary untuk runtime (biar cepet, beda sama proses pencairan dana).
+
+---
 
 ## API
 
-### Core Traits
+### Trait Inti (6 Pasal)
 
-All backends implement these traits:
+| Trait | Method | Mirip Kayak |
+|-------|--------|-------------|
+| `NetlinkIfaces` | `list`, `get`, `create`, `delete`, `up`, `down`, `mtu`, `address`, `vlan`, `bridge` | Bikin pos pungutan baru di setiap jalan |
+| `NetlinkFirewall` | `zone + rule: add/delete/list/flush` | Menentukan mana yang boleh lewat (dengan amplop) |
+| `NetlinkQos` | `add_qdisc`, `add_class`, HTB + fq_codel | Prioritas: mobil dinas duluan, angkot belakangan |
+| `NetlinkConntrack` | `set_max`, `set_buckets`, `fast_track` | Catat semua yang lewat — kayak DPT pemilu |
+| `NetlinkNat` | `SNAT`, `DNAT`, `masquerade` | Ganti identitas: kayak caleg ganti partai |
+| `NetlinkRoute` | `add/remove/list routes` | Nentuin jalan mana yang "lancar" (karena ada "kenalan") |
 
-| Trait | Methods | Purpose |
-|-------|---------|---------|
-| `NetlinkIfaces` | `list`, `get`, `create`, `delete`, `set_up`, `set_down`, `set_mtu`, `add_address`, `remove_address`, `create_vlan`, `add_bridge_port`, `remove_bridge_port`, `create_bridge` | Interface lifecycle & VLAN/bridge |
-| `NetlinkFirewall` | `list_zones`, `get_zone`, `create_zone`, `delete_zone`, `add_rule`, `remove_rule`, `flush_rules` | Zone-based firewall |
-| `NetlinkQos` | `attach_root_qdisc`, `add_class`, `remove_class`, `list_classes` | HTB + fq_codel QoS |
-| `NetlinkConntrack` | `set_conntrack_max`, `set_conntrack_buckets`, `get_conntrack_stats`, `enable_fast_track`, `disable_fast_track` | Conntrack tuning |
-| `NetlinkNat` | `add_snat`, `remove_snat`, `add_dnat`, `remove_dnat`, `enable_masquerade`, `disable_masquerade` | NAT rules |
-| `NetlinkRoute` | `add_route`, `remove_route`, `list_routes` | Static routing |
+### Manager API
 
-### Manager APIs
+- **InterfaceManager** — bikin, hapus, naikin, turunin interface. MTU 68–9000. VLAN ID 1–4094. Kalo lebih dari itu, lu kelewatan.
+- **FirewallManager** — zone-based (lan/wan/vpn). Rule bisa `allow` (lolos), `drop` (dicekal kayak orang kritis), `reject` (ditolak halus).
+- **QosManager** — HTB root, per-user class, fq_codel leaf. Rate/Ceil di Kbps. Mirip sistem jatah BBM bersubsidi — ada kuota, kalo lebih bayar.
+- **ConntrackManager** — set max 1024–4.194.304. Auto fast-track untuk traffic yang "kenal" (mirip golput).
+- **NatManager** — SNAT, DNAT, masquerade. Buat sembunyiin identitas: berguna kalo server lu diuber KPK.
+- **RouteManager** — routing static, prefix mask maksimal /128. Jalan buntu kalo lebih.
 
-Each manager wraps a backend and adds validation, defaults, and convenience methods:
-
-- **InterfaceManager** — `list()`, `get("eth0")`, `create(...)`, `delete("eth0")`, `set_up("eth0")`, `set_down("eth0")`, `set_mtu("eth0", 1500)`, `add_address("eth0", "192.168.1.1/24")`, `create_vlan("eth0", 100)`, `add_bridge_port("br0", "eth0")`, `create_bridge("br1")` — MTU validated to 68–9000, VLAN ID 1–4094
-- **FirewallManager** — `create_zone("lan")`, `get_zone("lan")`, `delete_zone("wan")`, `add_rule("lan", zone_rule)`, `remove_rule("lan", "rule-id")`, `flush_rules("dmz")`
-- **QosManager** — `attach_root("eth0", 1000000)`, `add_user_class("eth0", "user-1", 10000, 50000)`, `remove_class("eth0", "1:10")`, `list_classes("eth0")` — rate/ceil in Kbps
-- **ConntrackManager** — `set_max(262144)`, `set_buckets(65536)`, `enable_fast_track()`, `disable_fast_track()` — bounds: 1024–4,194,304
-- **NatManager** — `add_snat(...)`, `add_dnat(...)`, `enable_masquerade("eth0")`, `disable_masquerade("eth0")`
-- **RouteManager** — `add_route(...)`, `remove_route(...)`, `list_routes()`, `add_default_via("192.168.1.1")` — prefix max 128
-
-### CLI Commands
+### CLI
 
 ```
 punglios interface <list|get|create|delete|up|down|mtu|address|vlan|bridge>
 punglios firewall <zone|rule> <list|get|create|delete|add-rule|remove-rule|flush>
 punglios qos <attach|add-class|remove-class|list>
 punglios config <show|apply|commit|rollback|diff>
-punglios shell          # Launch TUI
+punglios shell          # TUI — Dashboard, Interfaces, Firewall, QoS, Config, Logs
 ```
+
+---
 
 ## Error Handling
 
-- All fallible operations return `Result<T, anyhow::Error>` with descriptive error messages
-- Config engine uses transactional commit/rollback: if `apply` fails mid-way, the engine restores the previous valid config from backup
-- `set_mtu` returns error for values outside 68–9000 range
-- `create_vlan` returns error for VLAN ID outside 1–4094
-- `set_max`/`set_buckets` return error for values outside 1024–4,194,304
-- CLI shows user-friendly error messages via `anyhow` context
-- TUI screen renders errors inline; never panics on bad input
+PungliOS nangani error dengan integritas tinggi — beda sama e-KTP yang typo di nama:
 
-## Limitations
+- Semua method return `Result<T, anyhow::Error>` — kalo error, tau kenapa. Kalo sukses, ya sukses.
+- Config engine punya **transactional commit/rollback**: kalo `apply` gagal di tengah jalan, balik ke config sebelumnya. Mirip janji kampanye yang gak ditepati — bedanya ini beneran rollback.
+- Validasi ketat: MTU 68–9000, VLAN 1–4094, conntrack 1024–4M. Kalo melenceng, ya tolak. Tegas kayak satpam mal.
+- CLI pake `anyhow` context — error message jelas, bukan "terjadi kesalahan" kayak website pemerintahan.
+- TUI render error di layar tanpa panic. Gak kayak menteri yang panik kalo ditanya wartawan.
 
-- **Linux-only** — all networking code requires Linux kernel with nftables + tc support
-- **Mock backend only** for now — real backend (1.1b) blocked until deployed on Linux VM
-- **No runtime config hot-reload** — config changes require explicit `apply`/`commit`
-- **Phase 1 only** — PPPoE, RADIUS, DHCP, DNS, REST API, Web UI are future phases
-- **Single-node** — no clustering or multi-instance support yet (planned for Phase 4)
-- **Benchmarks** currently measure mock backend throughput only; real backend benchmarks pending Linux deployment
+---
 
-## Multi-Instance / Cross-Boundary
+## Keterbatasan (Syarat & Ketentuan Berlaku)
 
-Currently each PungliOS instance manages a single Linux box. The project plans to add:
+- **Linux-only** — networking code butuh kernel Linux. Kalo lu pake Windows, beli router beneran atau pake Linux VM. Ini bukan aplikasi SPBE.
+- **Mock backend aja untuk sekarang** — real backend (1.1b) nunggu deploy ke Linux VM. Iya, kayak proyek pemerintah: bartanggung jawab news, bartanggung jawab di atas kertas.
+- **No hot-reload** — perubahan config harus `apply`/`commit` dulu. Beda sama APBN yang bisa di-revisi tengah jalan.
+- **Fase 1 doang** — PPPoE, RADIUS, DHCP, DNS, REST API, Web UI masih fase berikutnya. Sabar, ini bukan bansos.
+- **Single-node** — belum ada clustering. Kalo lu mau HA, colokin 2 router terus doa. Masih lebih canggih dari server KPU.
+- **Benchmark pake mock** — real benchmark butuh Linux deployment. Ini bukan hasil survei yang bisa dimanipulasi.
 
-- **REST API (Phase 3)** — gRPC/tonic for programmatic remote management
-- **High Availability (Phase 4)** — VRRP with state sync between active/standby nodes
-- **Multi-tenancy (Phase 4)** — partition resources by tenant
+---
 
-For now, multiple instances operate independently with no coordination.
+## Multi-Instance
 
-## Customization Guide
+Sekarang tiap instance PungliOS ngurus satu box Linux. Gak ada koordinasi multi-node — mirip kementerian yang jalan sendiri-sendiri. Rencana ke depan:
 
-### Adding a new backend implementation
+- **Phase 3** — REST API (gRPC/tonic) buat manajemen remote
+- **Phase 4** — VRRP high availability + multi-tenancy
 
-Implement one or more of the 6 core traits from `src/traits/netlink.rs`:
+---
+
+## Panduan Kustomisasi
+
+Pengen nambah backend sendiri? Gampang. Implementasiin 6 trait dari `src/traits/netlink.rs`:
 
 ```rust
 use punglios::traits::{NetlinkIfaces, Interface};
 
-struct CustomBackend { /* ... */ }
+struct BackendKorupsi { /* ... */ }
 
 #[async_trait]
-impl NetlinkIfaces for CustomBackend {
+impl NetlinkIfaces for BackendKorupsi {
     async fn list(&self) -> Result<Vec<Interface>, anyhow::Error> {
-        // Your implementation
+        // "Dana sudah cair, pak."
     }
-    // ... other methods
 }
 ```
 
-### Extending managers
-
-All managers accept a generic backend via `Box<dyn Trait + Send + Sync>`. Inject your backend at construction:
-
+Inject backend ke manager:
 ```rust
-let backend = Box::new(MyCustomBackend::new());
+let backend = Box::new(BackendKorupsi::new());
 let iface_mgr = InterfaceManager::new(backend);
 ```
 
-### Custom QoS policies
+Mau QoS kustom? Tinggal extend `QosManager` atau langsung pake `NetlinkQos` trait.
 
-Subclass `QosManager` or build directly on `NetlinkQos` trait to implement custom queuing disciplines beyond HTB + fq_codel.
+---
 
-## Comparison Table
+## Perbandingan (KOPI SUSU vs ES TEH MANIS)
 
-| Feature | PungliOS | MikroTik RouterOS | OpenWrt | VyOS |
-|---------|----------|-------------------|---------|------|
-| License | MIT (open) | Proprietary (paid) | GPL-2.0 (open) | Apache-2.0 (open) |
-| Data plane | Linux kernel (nftables + tc) | Linux kernel (proprietary) | Linux kernel (nftables) | Linux kernel (nftables) |
-| Config | YAML + bincode | CLI/Winbox | UCI | CLI (Junos-like) |
-| Transactional config | Yes | No | No | Yes |
+| Fitur | PungliOS | MikroTik RouterOS | OpenWrt | VyOS |
+|-------|----------|-------------------|---------|------|
+| Lisensi | **MIT (gratis)** | Bayar (kayak pajak) | **GPL-2.0 (gratis)** | Apache-2.0 |
+| Data plane | Linux kernel (nftables + tc) | Linux kernel (prop.) | Linux kernel | Linux kernel |
+| Config | YAML + bincode | CLI/Winbox | UCI | CLI ala Juniper |
+| Transaksional | ✅ Ya (bisa rollback) | ❌ Gak | ❌ Gak | ✅ Ya |
 | QoS | HTB + fq_codel | HTB + SFQ + PCQ | SQM (cake) | HTB + fq_codel |
-| PPPoE | Rust-native (Phase 2) | Built-in | pppd | pppd |
-| RADIUS | Rust-native (Phase 2) | Built-in | freeradius | freeradius |
-| Language | Rust | C (prop.) | C/Lua | Python |
-| Safety | Memory safe (Rust) | C (unsafe) | C (unsafe) | Python (safe) |
-| CLI | clap + ratatui TUI | Winbox + SSH | LuCI + SSH | CLI (Junos-like) |
+| PPPoE | **Rust-native** (Phase 2) | Built-in | pppd | pppd |
+| RADIUS | **Rust-native** (Phase 2) | Built-in | freeradius | freeradius |
+| Bahasa | **Rust** (aman) | C (berbahaya) | C (berbahaya) | Python |
+| Safety | ✅ Memory safe | ❌ C (bocor) | ❌ C (bocor) | ✅ Python |
+| Sarkasme | **✅ Sangat tinggi** | ❌ Zero | ❌ Zero | ❌ Zero |
 
-## Benchmarks
+---
 
-Current benchmarks measure mock backend throughput (no kernel overhead):
+## Benchmark (Performa Bukan Omong Kosong)
 
-| Operation | Throughput | Context |
-|-----------|-----------|---------|
-| Create interface | 2.1M ops/s | Mock backend |
-| Add firewall rule | 1.8M ops/s | Mock backend |
-| List 1000 rules | 340K lists/s | Mock backend |
-| Add QoS class | 1.5M ops/s | Mock backend |
-| NAT roundtrip | 1.2M ops/s | Mock backend |
-| Route add + delete | 950K ops/s | Mock backend |
+Benchmark pake mock backend (tanpa overhead kernel — mirip laporan keuangan yang udah "dirapikan"):
 
-> Real backend benchmarks (against nftables CLI, `tc` direct, iptables) are pending Linux deployment.
+| Operasi | Throughput | Padanannya |
+|---------|-----------|------------|
+| Create interface | 2.1M ops/s | Kayak bikin PT fiktif |
+| Add firewall rule | 1.8M ops/s | Kayak bikin aturan baru tiap hari |
+| List 1000 rules | 340K lists/s | Kayak ngitung suara ulang |
+| Add QoS class | 1.5M ops/s | Kayak bagi-bagi jabatan |
+| NAT roundtrip | 1.2M ops/s | Kayak ganti identitas |
+| Route add + delete | 950K ops/s | Kayak mutasi pejabat |
 
-Benchmarks run via `cargo bench` (criterion). Each test uses minimum 500 iterations.
+> Benchmark real backend (nftables, tc, iptables) menyusul — kalo udah di-deploy ke Linux. Kapan? *"Mohon doa dan dukungannya."*
 
-## Real-World Example
+Jalanin sendiri: `cargo bench` (criterion, min 500 iterasi).
+
+---
+
+## Contoh Penggunaan Realistis
+
+Buat ISP yang mau niruin sistem birokrasi dalam bentuk bandwidth management:
 
 ```yaml
 # /etc/punglios/config.yaml
 interfaces:
-  - name: wan0
+  - name: wan0                          # Koneksi ke internet (sumber rezeki)
     mtu: 1500
     addresses:
       - 203.0.113.1/24
-  - name: lan0
+  - name: lan0                          # Jaringan dalam (rakyat)
     mtu: 1500
     bridge: br0
     addresses:
       - 192.168.1.1/24
 
 firewall_zones:
-  - name: wan
+  - name: wan                           # Zona luar (menteri)
     interfaces: [wan0]
     rules:
-      - action: drop
-        src: 0.0.0.0/0
+      - action: drop                    # Tolak akses SSH dari luar
         dst: 203.0.113.1
         port: 22
-  - name: lan
+  - name: lan                           # Zona dalam (masyarakat)
     interfaces: [br0]
     rules:
-      - action: allow
+      - action: allow                   # Bebas akses (tapi dibates)
         src: 192.168.1.0/24
-        dst: 0.0.0.0/0
 
 nat:
-  - type: masquerade
+  - type: masquerade                    # Nyamar biar gak ketahuan
     interface: wan0
 
 qos:
   - interface: wan0
-    rate: 1000000
+    rate: 1000000                       # Total bandwidth (mirip APBN)
     classes:
-      - id: user-1
-        rate: 50000
+      - id: user-premium
+        rate: 50000                     # Prioritas tinggi (kayak proyek prioritas)
         ceil: 100000
+      - id: user-regular                # Rakyat biasa (dapet jatah pas-pasan)
+        rate: 10000
+        ceil: 50000
 
 routing:
   - dst: 0.0.0.0/0
-    via: 203.0.113.254
+    via: 203.0.113.254                 # Pintu keluar (kayak bandara Soetta)
 
 conntrack:
-  max: 262144
+  max: 262144                          # Catet semua yang lewat
   buckets: 65536
-  fast_track: true
+  fast_track: true                     # Yang "kenal" kasih jalur cepat
 ```
 
-Load and apply:
+Jalanin:
 
 ```bash
 punglios config apply /etc/punglios/config.yaml
-punglios config commit    # make permanent
+punglios config commit    # Simpen. Gak bisa dicairin dua kali.
 ```
 
-## Quick Start
+---
+
+## Quick Start (Buat yang Gak Betah Baca)
 
 ```bash
-# Build
 cargo build --release
-
-# Run with mock backend (default, works anywhere)
-./target/release/punglios interface list
-
-# View TUI
-./target/release/punglios shell
+./target/release/punglios interface list        # Liat interface (aman)
+./target/release/punglios shell                 # TUI — lebih canggih dari e-KTP
 ```
 
-## License
+---
 
-MIT
+## Lisensi
+
+MIT — Sepenuhnya gratis, open-source, dan transparan. **Bukan kayak proyek pemerintah yang anggarannya hilang entah ke mana.**
+
+---
+
+**PungliOS: Karena kalo negara aja bisa pungli, masa router lo enggak?**
+
+*Dibuat dengan cinta, sarkasme, dan Rust — bahasa pemrograman yang gak bocor. Bed sama Anggaran.*

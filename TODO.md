@@ -41,10 +41,10 @@
 
 | # | Task | Komponen | Status | Priority |
 |---|------|----------|--------|----------|
-| 2.1 | PPPoE discovery (PADI/PADO/PADR/PADS/PADT) | PPPoE | 🔴 TODO | P0 |
-| 2.2 | PPP negotiation (LCP, IPCP, auth: PAP/CHAP/MS-CHAPv2) | PPPoE | 🔴 TODO | P0 |
-| 2.3 | Session management (kernel-mode pppX interfaces) | PPPoE | 🔴 TODO | P0 |
-| 2.4 | RADIUS client (auth + accounting + CoA) | RADIUS | 🔴 TODO | P0 |
+| 2.1 | PPPoE discovery (PADI/PADO/PADR/PADS/PADT) | PPPoE | 🟢 DONE | P0 |
+| 2.2 | PPP negotiation (LCP, IPCP, auth: PAP/CHAP/MS-CHAPv2) | PPPoE | 🟢 DONE | P0 |
+| 2.3 | Session management (kernel-mode pppX interfaces) | PPPoE | 🟡 WIP | P0 |
+| 2.4 | RADIUS client (auth + accounting + CoA) | RADIUS | 🟢 DONE | P0 |
 | 2.5 | User management (CRUD, group/paket, bandwidth profile) | User Mgmt | 🔴 TODO | P1 |
 | 2.6 | DHCP server (Rust-native) | DHCP | 🔴 TODO | P1 |
 | 2.7 | DNS forwarder (cache + adblock) | DNS | 🔴 TODO | P2 |
