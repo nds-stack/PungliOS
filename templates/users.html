@@ -7,7 +7,7 @@
     <div x-show="open" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" @click.away="open = false">
       <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700" @click.stop>
         <h3 class="text-lg font-semibold mb-4">New User</h3>
-        <form hx-post="/api/v1/users" hx-target="body" hx-swap="innerHTML" class="space-y-3">
+        <form hx-post="/api/v1/users" hx-ext="json-enc" hx-target="body" hx-swap="innerHTML" class="space-y-3">
           <input name="username" placeholder="Username" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
           <input name="password" type="password" placeholder="Password" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
           <input name="notes" placeholder="Notes" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
@@ -54,7 +54,20 @@
         </td>
         <td class="px-4 py-3">
           <div class="flex gap-1">
-            <button hx-put="/api/v1/users/{{ u.username }}" hx-target="body" hx-swap="innerHTML" class="btn btn-sm btn-primary">Edit</button>
+            <div x-data="{ editOpen: false }">
+              <button @click="editOpen = true" class="btn btn-sm btn-primary">Edit</button>
+              <div x-show="editOpen" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" @click.away="editOpen = false">
+                <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700" @click.stop>
+                  <h3 class="text-lg font-semibold mb-4">Edit User: {{ u.username }}</h3>
+                  <form hx-put="/api/v1/users/{{ u.username }}" hx-target="body" hx-swap="innerHTML" hx-ext="json-enc" class="space-y-3">
+                    <input name="notes" placeholder="Notes" value="{{ u.notes | default(value='') }}" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="enabled" {% if u.enabled %}checked{% endif %} class="rounded"> Enabled</label>
+                    <button type="submit" class="btn btn-primary w-full">Save</button>
+                  </form>
+                  <button @click="editOpen = false" class="text-gray-400 text-sm mt-3">Cancel</button>
+                </div>
+              </div>
+            </div>
             <button hx-delete="/api/v1/users/{{ u.username }}" hx-target="body" hx-swap="innerHTML" hx-confirm="Delete user {{ u.username }}?" class="btn btn-sm btn-danger">Delete</button>
           </div>
         </td>

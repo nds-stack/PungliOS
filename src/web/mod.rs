@@ -7,7 +7,17 @@ use std::sync::Arc;
 use tera::{Context, Tera};
 
 fn setup_tera() -> Tera {
-    Tera::new("templates/**/*.html").expect("failed to load templates")
+    let template_path = if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let path = dir.join("templates").join("**/*.html");
+            path.to_string_lossy().to_string()
+        } else {
+            "templates/**/*.html".to_string()
+        }
+    } else {
+        "templates/**/*.html".to_string()
+    };
+    Tera::new(&template_path).expect("failed to load templates")
 }
 
 #[derive(Clone)]
@@ -127,12 +137,18 @@ fn route_vec(routes: &[crate::traits::Route]) -> Vec<serde_json::Value> {
 async fn dashboard(State(ws): State<WebState>) -> Html<String> {
     let mut ctx = Context::new();
     let ifaces = ws.app.iface_mgr.list().await.unwrap_or_default();
-    let rules = ws.app.fw_mgr.list_rules("").await.unwrap_or_default();
+    let zones = ["lan", "wan", "vpn"];
+    let mut all_rules = Vec::new();
+    for zone in &zones {
+        if let Ok(r) = ws.app.fw_mgr.list_rules(zone).await {
+            all_rules.extend(r);
+        }
+    }
     let users = ws.app.user_mgr.list_users().await.unwrap_or_default();
     ctx.insert("page", "dashboard");
     ctx.insert("page_title", "Dashboard");
     ctx.insert("iface_count", &ifaces.len());
-    ctx.insert("rule_count", &rules.len());
+    ctx.insert("rule_count", &all_rules.len());
     ctx.insert("user_count", &users.len());
     ctx.insert("session_count", &0usize);
     render(&ws.tmpl, "dashboard.html", &ctx)
@@ -149,10 +165,16 @@ async fn interfaces_page(State(ws): State<WebState>) -> Html<String> {
 
 async fn firewall_page(State(ws): State<WebState>) -> Html<String> {
     let mut ctx = Context::new();
-    let rules = ws.app.fw_mgr.list_rules("").await.unwrap_or_default();
+    let zones = ["lan", "wan", "vpn"];
+    let mut all_rules = Vec::new();
+    for zone in &zones {
+        if let Ok(r) = ws.app.fw_mgr.list_rules(zone).await {
+            all_rules.extend(r);
+        }
+    }
     ctx.insert("page", "firewall");
     ctx.insert("page_title", "Firewall");
-    ctx.insert("rules", &rule_vec(&rules));
+    ctx.insert("rules", &rule_vec(&all_rules));
     render(&ws.tmpl, "firewall.html", &ctx)
 }
 

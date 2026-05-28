@@ -50,6 +50,7 @@ impl AppState {
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/api/v1/interfaces", get(list_interfaces))
+        .route("/api/v1/interfaces", post(create_interface))
         .route("/api/v1/interfaces/{name}", get(get_interface))
         .route("/api/v1/interfaces/{name}/up", post(set_interface_up))
         .route("/api/v1/interfaces/{name}/down", post(set_interface_down))
@@ -96,6 +97,23 @@ fn err(msg: String) -> Json<serde_json::Value> {
 
 async fn health_check() -> Json<serde_json::Value> {
     ok()
+}
+
+async fn create_interface(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let config = crate::traits::InterfaceConfig {
+        name: body["name"].as_str().unwrap_or("").to_string(),
+        mtu: body["mtu"].as_u64().map(|v| v as u16),
+        addresses: vec![],
+        vlan_id: body["vlan_id"].as_u64().map(|v| v as u16),
+        bridge: body["bridge"].as_str().map(|v| v.to_string()),
+    };
+    match s.iface_mgr.create(&config).await {
+        Ok(iface) => Json(serde_json::json!(iface)),
+        Err(e) => err(e.to_string()),
+    }
 }
 
 async fn list_interfaces(State(s): State<AppState>) -> Json<serde_json::Value> {

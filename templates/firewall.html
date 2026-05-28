@@ -7,7 +7,7 @@
     <div x-show="open" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" @click.away="open = false">
       <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700" @click.stop>
         <h3 class="text-lg font-semibold mb-4">New Firewall Rule</h3>
-        <form hx-post="/api/v1/firewall/rules" hx-target="body" hx-swap="innerHTML" class="space-y-3">
+        <form hx-post="/api/v1/firewall/rules" hx-ext="json-enc" hx-target="body" hx-swap="innerHTML" class="space-y-3">
           <input name="zone" placeholder="Zone (wan/lan/dmz)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
           <select name="chain" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
             <option value="input">INPUT</option>
