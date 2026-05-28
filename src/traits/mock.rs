@@ -36,7 +36,7 @@ impl MockBackend {
         };
         self.interfaces
             .write()
-            .unwrap()
+            .expect("lock poisoned")
             .insert(name.to_string(), iface);
     }
 
@@ -52,13 +52,19 @@ impl MockBackend {
 #[async_trait]
 impl NetlinkIfaces for MockBackend {
     async fn list(&self) -> Result<Vec<Interface>> {
-        Ok(self.interfaces.read().expect("lock poisoned").values().cloned().collect())
+        Ok(self
+            .interfaces
+            .read()
+            .expect("lock poisoned")
+            .values()
+            .cloned()
+            .collect())
     }
 
     async fn get(&self, name: &str) -> Result<Interface> {
         self.interfaces
             .read()
-            .unwrap()
+            .expect("lock poisoned")
             .get(name)
             .cloned()
             .ok_or_else(|| anyhow::anyhow!("interface {name} not found"))
@@ -75,7 +81,7 @@ impl NetlinkIfaces for MockBackend {
         };
         self.interfaces
             .write()
-            .unwrap()
+            .expect("lock poisoned")
             .insert(config.name.clone(), iface.clone());
         Ok(iface)
     }
@@ -86,28 +92,48 @@ impl NetlinkIfaces for MockBackend {
     }
 
     async fn set_up(&self, name: &str) -> Result<()> {
-        if let Some(iface) = self.interfaces.write().expect("lock poisoned").get_mut(name) {
+        if let Some(iface) = self
+            .interfaces
+            .write()
+            .expect("lock poisoned")
+            .get_mut(name)
+        {
             iface.up = true;
         }
         Ok(())
     }
 
     async fn set_down(&self, name: &str) -> Result<()> {
-        if let Some(iface) = self.interfaces.write().expect("lock poisoned").get_mut(name) {
+        if let Some(iface) = self
+            .interfaces
+            .write()
+            .expect("lock poisoned")
+            .get_mut(name)
+        {
             iface.up = false;
         }
         Ok(())
     }
 
     async fn set_mtu(&self, name: &str, mtu: u16) -> Result<()> {
-        if let Some(iface) = self.interfaces.write().expect("lock poisoned").get_mut(name) {
+        if let Some(iface) = self
+            .interfaces
+            .write()
+            .expect("lock poisoned")
+            .get_mut(name)
+        {
             iface.mtu = mtu;
         }
         Ok(())
     }
 
     async fn add_address(&self, name: &str, addr: IpAddr) -> Result<()> {
-        if let Some(iface) = self.interfaces.write().expect("lock poisoned").get_mut(name) {
+        if let Some(iface) = self
+            .interfaces
+            .write()
+            .expect("lock poisoned")
+            .get_mut(name)
+        {
             iface.addresses.push(addr);
         }
         Ok(())
@@ -131,7 +157,10 @@ impl NetlinkFirewall for MockBackend {
     }
 
     async fn delete_rule(&self, handle: u64) -> Result<()> {
-        self.rules.write().expect("lock poisoned").retain(|r| r.handle != handle);
+        self.rules
+            .write()
+            .expect("lock poisoned")
+            .retain(|r| r.handle != handle);
         Ok(())
     }
 
@@ -143,7 +172,7 @@ impl NetlinkFirewall for MockBackend {
     async fn create_zone(&self, zone: &FirewallZone) -> Result<()> {
         self.zones
             .write()
-            .unwrap()
+            .expect("lock poisoned")
             .insert(zone.name.clone(), zone.clone());
         Ok(())
     }
@@ -162,14 +191,17 @@ impl NetlinkQos for MockBackend {
     }
 
     async fn add_class(&self, config: &ClassConfig) -> Result<()> {
-        self.classes.write().expect("lock poisoned").push(config.clone());
+        self.classes
+            .write()
+            .expect("lock poisoned")
+            .push(config.clone());
         Ok(())
     }
 
     async fn delete_class(&self, _iface: &str, classid: u32) -> Result<()> {
         self.classes
             .write()
-            .unwrap()
+            .expect("lock poisoned")
             .retain(|c| c.classid != classid);
         Ok(())
     }
@@ -216,7 +248,7 @@ impl NetlinkNat for MockBackend {
     async fn delete_rule(&self, handle: u64) -> Result<()> {
         self.nat_rules
             .write()
-            .unwrap()
+            .expect("lock poisoned")
             .retain(|r| r.handle != handle);
         Ok(())
     }
@@ -231,14 +263,17 @@ impl NetlinkNat for MockBackend {
 #[async_trait]
 impl NetlinkRoute for MockBackend {
     async fn add_route(&self, route: &Route) -> Result<()> {
-        self.routes.write().expect("lock poisoned").push(route.clone());
+        self.routes
+            .write()
+            .expect("lock poisoned")
+            .push(route.clone());
         Ok(())
     }
 
     async fn delete_route(&self, destination: IpAddr, prefix: u8) -> Result<()> {
         self.routes
             .write()
-            .unwrap()
+            .expect("lock poisoned")
             .retain(|r| r.destination != destination || r.prefix != prefix);
         Ok(())
     }
