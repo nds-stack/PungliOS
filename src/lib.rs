@@ -12,6 +12,7 @@ extern crate tokio_test;
 pub mod cli;
 pub mod config;
 pub mod conntrack;
+pub mod dhcp;
 pub mod firewall;
 pub mod net;
 pub mod pppoe;
