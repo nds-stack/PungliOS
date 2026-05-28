@@ -205,7 +205,9 @@ impl NetlinkQos for RealBackend {
         let parent = nlink::netlink::tc_handle::TcHandle::from_raw(config.parent);
         let classid = nlink::netlink::tc_handle::TcHandle::from_raw(config.classid);
         let htb = nlink::netlink::tc::HtbClassConfig::new(rate).ceil(ceil);
-        self.rt_conn.add_class(&config.iface, parent, classid, htb).await?;
+        self.rt_conn
+            .add_class(&config.iface, parent, classid, htb)
+            .await?;
         Ok(())
     }
 
@@ -233,9 +235,14 @@ impl NetlinkConntrack for RealBackend {
         let mut entries = Vec::new();
         for line in content.lines() {
             let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() < 6 { continue; }
+            if parts.len() < 6 {
+                continue;
+            }
             let state = parts.first().unwrap_or(&"?").to_string();
-            let src_port = parts.get(5).and_then(|s| s.parse::<u16>().ok()).unwrap_or(0);
+            let src_port = parts
+                .get(5)
+                .and_then(|s| s.parse::<u16>().ok())
+                .unwrap_or(0);
             entries.push(ConntrackEntry {
                 protocol: parts.get(2).unwrap_or(&"?").to_string(),
                 src: std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
@@ -306,9 +313,16 @@ impl NetlinkNat for RealBackend {
     }
 
     async fn delete_rule(&self, handle: u64) -> Result<()> {
-        let r1 = self.nf_conn.del_rule("punglios-nat", "postrouting", Family::Inet, handle).await;
-        if r1.is_ok() { return Ok(()); }
-        self.nf_conn.del_rule("punglios-nat", "prerouting", Family::Inet, handle).await?;
+        let r1 = self
+            .nf_conn
+            .del_rule("punglios-nat", "postrouting", Family::Inet, handle)
+            .await;
+        if r1.is_ok() {
+            return Ok(());
+        }
+        self.nf_conn
+            .del_rule("punglios-nat", "prerouting", Family::Inet, handle)
+            .await?;
         Ok(())
     }
 

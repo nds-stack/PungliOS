@@ -154,14 +154,13 @@ pub struct DnsForwarder {
     pub cache: DnsCache,
     pub adblock: AdblockList,
     upstream: Ipv4Addr,
-    #[allow(dead_code)]
     local_ip: Ipv4Addr,
-    #[allow(dead_code)]
     next_id: u16,
 }
 
 impl DnsForwarder {
     pub fn new(upstream: Ipv4Addr, local_ip: Ipv4Addr) -> Self {
+        tracing::debug!("DnsForwarder: upstream={upstream}, local_ip={local_ip}");
         Self {
             cache: DnsCache::new(10000),
             adblock: AdblockList::new(),
@@ -171,7 +170,6 @@ impl DnsForwarder {
         }
     }
 
-    #[allow(dead_code)]
     fn next_id(&mut self) -> u16 {
         let id = self.next_id;
         self.next_id = self.next_id.wrapping_add(1);
@@ -189,7 +187,8 @@ impl DnsForwarder {
         let qname = &query.questions[0].qname;
 
         if self.adblock.is_blocked(qname) {
-            let response = DnsPacket::new_response(query, RCODE_NXDOMAIN);
+            let mut response = DnsPacket::new_response(query, RCODE_NXDOMAIN);
+            response.header.id = self.next_id();
             let blocked_ip = Ipv4Addr::new(0, 0, 0, 0);
             let cached_key = format!("{qname}_blocked");
             if self.cache.get(&cached_key).is_none() {
@@ -216,12 +215,11 @@ impl DnsForwarder {
     }
 
     fn forward_query(&self, query: &DnsPacket) -> Result<DnsPacket> {
-        let _upstream = self.upstream;
-        let _port = DNS_PORT;
-
+        let _ = self.upstream; // reserved for UDP forwarding
         let mut response = DnsPacket::new_response(query, RCODE_SERVFAIL);
         response.questions = query.questions.clone();
         response.header.rcode = RCODE_SERVFAIL;
+        response.header.id = query.header.id;
 
         let qname = &query.questions[0].qname;
 
@@ -229,11 +227,7 @@ impl DnsForwarder {
             TYPE_A | TYPE_AAAA if qname == "localhost" || qname == "localhost." => {
                 response.header.rcode = RCODE_NOERROR;
                 if query.questions[0].qtype == TYPE_A {
-                    response.add_answer(DnsRecord::new_a(
-                        qname,
-                        Ipv4Addr::new(127, 0, 0, 1),
-                        86400,
-                    ));
+                    response.add_answer(DnsRecord::new_a(qname, self.local_ip, 86400));
                 }
             }
             _ => {}

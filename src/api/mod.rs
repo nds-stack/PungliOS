@@ -73,6 +73,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/packages/{name}", put(update_package))
         .route("/api/v1/packages/{name}", delete(delete_package))
         .route("/api/v1/health", get(health_check))
+        .route("/api/v1/monitoring/bandwidth", get(get_bandwidth))
+        .route("/api/v1/monitoring/system", get(get_system_stats))
         .with_state(state)
 }
 
@@ -277,6 +279,84 @@ async fn add_route(
         }
         Err(e) => err(format!("invalid destination: {e}")),
     }
+}
+
+// ─── Monitoring ───────────────────────────────────────
+
+async fn get_bandwidth(State(s): State<AppState>) -> Json<serde_json::Value> {
+    let mut ifaces = Vec::new();
+    if let Ok(list) = s.iface_mgr.list().await {
+        for iface in &list {
+            let _stats =
+                metrics::gauge!("punglios.bandwidth.bytes", "interface" => iface.name.clone());
+            ifaces.push(serde_json::json!({
+                "name": iface.name,
+                "mtu": iface.mtu,
+                "up": iface.up,
+                "rx_bytes": 0u64,
+                "tx_bytes": 0u64,
+            }));
+        }
+    }
+    Json(serde_json::json!({"interfaces": ifaces}))
+}
+
+async fn get_system_stats(State(s): State<AppState>) -> Json<serde_json::Value> {
+    let (cpu, mem_total, mem_used, uptime_secs) = get_system_info();
+    Json(serde_json::json!({
+        "cpu_percent": cpu,
+        "memory": { "total_mb": mem_total, "used_mb": mem_used },
+        "uptime_secs": uptime_secs,
+        "conntrack_count": s.ct_mgr.lock().await.count().await.unwrap_or(0),
+        "conntrack_max": s.ct_mgr.lock().await.max(),
+    }))
+}
+
+fn get_system_info() -> (f64, u64, u64, u64) {
+    let mut uptime = 0u64;
+    let mut mem_total = 0u64;
+    let mut mem_used = 0u64;
+    let mut cpu = 0.0_f64;
+
+    if cfg!(target_os = "linux") {
+        uptime = std::fs::read_to_string("/proc/uptime")
+            .ok()
+            .and_then(|s| s.split_whitespace().next()?.parse::<f64>().ok())
+            .unwrap_or(0.0) as u64;
+
+        let meminfo = std::fs::read_to_string("/proc/meminfo").unwrap_or_default();
+        mem_total = meminfo
+            .lines()
+            .find(|l| l.starts_with("MemTotal:"))
+            .and_then(|l| l.split_whitespace().nth(1))
+            .and_then(|s| s.parse::<u64>().ok())
+            .map(|kb| kb / 1024)
+            .unwrap_or(0);
+        let mem_avail = meminfo
+            .lines()
+            .find(|l| l.starts_with("MemAvailable:"))
+            .and_then(|l| l.split_whitespace().nth(1))
+            .and_then(|s| s.parse::<u64>().ok())
+            .map(|kb| kb / 1024)
+            .unwrap_or(0);
+        mem_used = mem_total.saturating_sub(mem_avail);
+
+        cpu = std::fs::read_to_string("/proc/stat")
+            .ok()
+            .and_then(|s| {
+                let line = s.lines().next()?;
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                let total: u64 = parts[1..]
+                    .iter()
+                    .filter_map(|p| p.parse::<u64>().ok())
+                    .sum();
+                let idle: u64 = parts[4].parse().ok()?;
+                Some(100.0 * (1.0 - idle as f64 / total as f64))
+            })
+            .unwrap_or(0.0);
+    }
+
+    (cpu, mem_total, mem_used, uptime)
 }
 
 async fn delete_route(
@@ -508,9 +588,15 @@ async fn update_package(
         .unwrap_or(pkg.profiles);
     let updated = crate::user::types::UserPackage {
         name: body["name"].as_str().map(|s| s.to_string()).unwrap_or(name),
-        description: body["description"].as_str().map(|s| s.to_string()).unwrap_or(pkg.description),
+        description: body["description"]
+            .as_str()
+            .map(|s| s.to_string())
+            .unwrap_or(pkg.description),
         profiles,
-        session_timeout: body["session_timeout"].as_u64().map(|v| v as u32).or(pkg.session_timeout),
+        session_timeout: body["session_timeout"]
+            .as_u64()
+            .map(|v| v as u32)
+            .or(pkg.session_timeout),
     };
     match s.user_mgr.create_package(updated).await {
         Ok(_) => ok(),
