@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+  <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+    <h3 class="font-semibold text-sm uppercase tracking-wide text-gray-400 mb-4">DHCP Server Status</h3>
+    <div class="space-y-2 text-sm">
+      <div class="flex justify-between"><span class="text-gray-400">Interfaces</span><span>{{ interfaces | length }}</span></div>
+      <div class="flex justify-between"><span class="text-gray-400">Active Leases</span><span>0</span></div>
+    </div>
+  </div>
+  <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+    <h3 class="font-semibold text-sm uppercase tracking-wide text-gray-400 mb-4">Quick Config</h3>
+    <p class="text-sm text-gray-500">Configure DHCP pools per interface via the API or config file.</p>
+  </div>
+</div>
+
+<div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="bg-gray-700/50 text-gray-400 uppercase text-xs tracking-wide">
+        <th class="text-left px-4 py-3">Interface</th>
+        <th class="text-left px-4 py-3">Addresses</th>
+        <th class="text-left px-4 py-3">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for iface in interfaces %}
+      <tr class="border-t border-gray-700 hover:bg-gray-700/30">
+        <td class="px-4 py-3">{{ iface.name }}</td>
+        <td class="px-4 py-3 font-mono text-xs">{{ iface.addresses | join(sep=", ") }}</td>
+        <td class="px-4 py-3">
+          {% if iface.up %}
+          <span class="text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full text-xs">UP</span>
+          {% else %}
+          <span class="text-gray-500 bg-gray-700 px-2 py-0.5 rounded-full text-xs">DOWN</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3" class="px-4 py-8 text-center text-gray-500">No interfaces</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

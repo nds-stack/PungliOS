@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
+  <div class="stat-card">
+    <p class="text-gray-400 text-sm">Bandwidth</p>
+    <p class="text-3xl font-bold mt-2" id="bandwidth-value">Loading...</p>
+    <p class="text-xs text-gray-500 mt-1">Current throughput</p>
+  </div>
+  <div class="stat-card">
+    <p class="text-gray-400 text-sm">Conntrack</p>
+    <p class="text-3xl font-bold mt-2">{{ conntrack_count }}</p>
+    <p class="text-xs text-gray-500 mt-1">Active connections</p>
+  </div>
+  <div class="stat-card">
+    <p class="text-gray-400 text-sm">System</p>
+    <p class="text-3xl font-bold mt-2" id="cpu-value">—</p>
+    <p class="text-xs text-gray-500 mt-1">CPU / Memory</p>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+  <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+    <h3 class="font-semibold text-sm uppercase tracking-wide text-gray-400 mb-4">Bandwidth Graph</h3>
+    <div hx-trigger="load delay:2s" hx-get="/api/v1/monitoring/bandwidth" hx-target="this" hx-swap="innerHTML" class="text-sm text-gray-500">
+      Loading bandwidth data...
+    </div>
+  </div>
+  <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+    <h3 class="font-semibold text-sm uppercase tracking-wide text-gray-400 mb-4">System Metrics</h3>
+    <div hx-trigger="load delay:2s" hx-get="/api/v1/monitoring/system" hx-target="this" hx-swap="innerHTML" class="text-sm text-gray-500">
+      Loading system metrics...
+    </div>
+  </div>
+</div>
+
+<div class="mt-5 bg-gray-800 rounded-xl p-5 border border-gray-700">
+  <h3 class="font-semibold text-sm uppercase tracking-wide text-gray-400 mb-4">Auto Refresh</h3>
+  <p class="text-sm text-gray-500">Monitoring data refreshes automatically every 5 seconds.</p>
+  <div class="flex gap-3 mt-3">
+    <button hx-get="/api/v1/monitoring/bandwidth" hx-target="#bandwidth-value" hx-swap="innerHTML" class="btn btn-primary btn-sm">Refresh Now</button>
+  </div>
+</div>
+
+<script>
+  setInterval(function() {
+    htmx.ajax('GET', '/api/v1/monitoring/bandwidth', {target: '#bandwidth-value', swap: 'innerHTML'});
+    htmx.ajax('GET', '/api/v1/monitoring/system', {target: '#cpu-value', swap: 'innerHTML'});
+  }, 5000);
+</script>
+{% endblock %}

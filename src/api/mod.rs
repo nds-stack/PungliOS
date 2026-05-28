@@ -23,6 +23,12 @@ pub struct AppState {
     pub user_mgr: Arc<user::UserManager<user::MockUserBackend>>,
 }
 
+impl Default for AppState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AppState {
     pub fn new() -> Self {
         let backend = MockBackend::new();

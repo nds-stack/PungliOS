@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex items-center justify-between mb-5">
+  <p class="text-gray-400 text-sm">{{ classes | length }} class(es)</p>
+  <div x-data="{ open: false }">
+    <button @click="open = true" class="btn btn-primary">+ Add Class</button>
+    <div x-show="open" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" @click.away="open = false">
+      <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700" @click.stop>
+        <h3 class="text-lg font-semibold mb-4">New QoS Class</h3>
+        <form hx-post="/api/v1/qos/classes" hx-target="body" hx-swap="innerHTML" class="space-y-3">
+          <input name="iface" placeholder="Interface" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
+          <input name="classid" placeholder="Class ID (e.g. 1:10)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
+          <input name="rate" placeholder="Rate (e.g. 10mbit)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+          <input name="ceil" placeholder="Ceil (e.g. 20mbit)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+          <button type="submit" class="btn btn-primary w-full">Create</button>
+        </form>
+        <button @click="open = false" class="text-gray-400 text-sm mt-3">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="bg-gray-700/50 text-gray-400 uppercase text-xs tracking-wide">
+        <th class="text-left px-4 py-3">Interface</th>
+        <th class="text-left px-4 py-3">ClassID</th>
+        <th class="text-left px-4 py-3">Rate</th>
+        <th class="text-left px-4 py-3">Ceil</th>
+        <th class="text-left px-4 py-3">Priority</th>
+        <th class="text-left px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in classes %}
+      <tr class="border-t border-gray-700 hover:bg-gray-700/30">
+        <td class="px-4 py-3">{{ c.iface }}</td>
+        <td class="px-4 py-3 font-mono text-xs">{{ c.classid }}</td>
+        <td class="px-4 py-3">{{ c.rate }}</td>
+        <td class="px-4 py-3">{{ c.ceil }}</td>
+        <td class="px-4 py-3">{{ c.priority }}</td>
+        <td class="px-4 py-3">
+          <button hx-delete="/api/v1/qos/classes/{{ c.classid }}" hx-target="body" hx-swap="innerHTML" hx-confirm="Delete class {{ c.classid }}?" class="btn btn-sm btn-danger">Delete</button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">No QoS classes</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

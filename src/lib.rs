@@ -21,6 +21,8 @@ pub mod pppoe;
 pub mod qos;
 pub mod traits;
 pub mod user;
+#[cfg(feature = "web")]
+pub mod web;
 
 pub mod prelude {
     pub use crate::traits::*;
@@ -42,6 +44,8 @@ use rkyv as _;
 use serde as _;
 use serde_json as _;
 use serde_yaml as _;
+#[cfg(feature = "web")]
+use tera as _;
 use thiserror as _;
 use tokio as _;
 #[cfg(feature = "api")]

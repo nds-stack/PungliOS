@@ -27,4 +27,12 @@ pub enum CliCommand {
 
     /// Launch interactive terminal UI
     Shell,
+
+    /// Start REST API + Web UI server
+    #[cfg(feature = "api")]
+    Serve {
+        /// Listen address (default: 0.0.0.0:3000)
+        #[arg(default_value = "0.0.0.0:3000")]
+        addr: String,
+    },
 }

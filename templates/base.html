@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PungliOS — {{ page_title }}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' };
+  </script>
+  <style>
+    .sidebar-link { @apply flex items-center gap-3 px-4 py-2.5 text-sm rounded-lg transition-colors; }
+    .sidebar-link:hover { @apply bg-gray-700 text-white; }
+    .sidebar-link.active { @apply bg-indigo-600 text-white; }
+    .stat-card { @apply bg-gray-800 rounded-xl p-5 border border-gray-700; }
+    .btn { @apply px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer; }
+    .btn-primary { @apply bg-indigo-600 text-white hover:bg-indigo-700; }
+    .btn-danger { @apply bg-red-600 text-white hover:bg-red-700; }
+    .btn-sm { @apply px-3 py-1.5 text-xs; }
+  </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen flex" x-data="{ sidebarOpen: true }">
+  <!-- Sidebar -->
+  <aside class="bg-gray-800 w-64 flex-shrink-0 border-r border-gray-700 flex flex-col" x-show="sidebarOpen">
+    <div class="p-5 border-b border-gray-700">
+      <h1 class="text-xl font-bold text-indigo-400">PungliOS</h1>
+      <p class="text-xs text-gray-500 mt-0.5">ISP Management Platform</p>
+    </div>
+    <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
+      <a href="/" class="sidebar-link {% if page == 'dashboard' %}active{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        Dashboard
+      </a>
+      <p class="text-xs text-gray-600 uppercase tracking-wide px-4 pt-4 pb-1.5">Network</p>
+      <a href="/web/interfaces" class="sidebar-link {% if page == 'interfaces' %}active{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+        Interfaces
+      </a>
+      <a href="/web/firewall" class="sidebar-link {% if page == 'firewall' %}active{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+        Firewall
+      </a>
+      <a href="/web/nat" class="sidebar-link {% if page == 'nat' %}active{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        NAT
+      </a>
+      <a href="/web/routes" class="sidebar-link {% if page == 'routes' %}active{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+        Routes
+      </a>
+      <a href="/web/qos" class="sidebar-link {% if page == 'qos' %}active{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+        QoS
+      </a>
+      <p class="text-xs text-gray-600 uppercase tracking-wide px-4 pt-4 pb-1.5">Subscribers</p>
+      <a href="/web/users" class="sidebar-link {% if page == 'users' %}active{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/></svg>
+        Users
+      </a>
+      <a href="/web/packages" class="sidebar-link {% if page == 'packages' %}active{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        Packages
+      </a>
+      <a href="/web/sessions" class="sidebar-link {% if page == 'sessions' %}active{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        PPPoE Sessions
+      </a>
+      <p class="text-xs text-gray-600 uppercase tracking-wide px-4 pt-4 pb-1.5">Services</p>
+      <a href="/web/dhcp" class="sidebar-link {% if page == 'dhcp' %}active{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        DHCP Server
+      </a>
+      <a href="/web/dns" class="sidebar-link {% if page == 'dns' %}active{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        DNS Forwarder
+      </a>
+      <p class="text-xs text-gray-600 uppercase tracking-wide px-4 pt-4 pb-1.5">System</p>
+      <a href="/web/monitoring" class="sidebar-link {% if page == 'monitoring' %}active{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        Monitoring
+      </a>
+    </nav>
+  </aside>
+
+  <!-- Main Content -->
+  <div class="flex-1 flex flex-col min-h-screen">
+    <!-- Top Navbar -->
+    <header class="bg-gray-800 border-b border-gray-700 px-6 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <button @click="sidebarOpen = !sidebarOpen" class="text-gray-400 hover:text-white p-1">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <h2 class="text-lg font-semibold">{{ page_title }}</h2>
+      </div>
+      <div class="flex items-center gap-3 text-sm">
+        <span class="text-gray-500">{{ page_title }} page</span>
+      </div>
+    </header>
+
+    <!-- Page Content -->
+    <main class="flex-1 p-6 overflow-y-auto">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>

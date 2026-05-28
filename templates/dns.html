@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+  <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+    <h3 class="font-semibold text-sm uppercase tracking-wide text-gray-400 mb-4">DNS Forwarder</h3>
+    <div class="space-y-2 text-sm">
+      <div class="flex justify-between"><span class="text-gray-400">Status</span><span class="text-green-400">Active</span></div>
+      <div class="flex justify-between"><span class="text-gray-400">Cache Size</span><span>0 entries</span></div>
+      <div class="flex justify-between"><span class="text-gray-400">Ad-block</span><span class="text-yellow-400">Enabled</span></div>
+    </div>
+  </div>
+  <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+    <h3 class="font-semibold text-sm uppercase tracking-wide text-gray-400 mb-4">Upstream Servers</h3>
+    <div class="space-y-1 text-sm">
+      <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-green-400"></span> 1.1.1.1 (Cloudflare)</div>
+      <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-green-400"></span> 8.8.8.8 (Google)</div>
+    </div>
+  </div>
+</div>
+
+<div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+  <h3 class="font-semibold text-sm uppercase tracking-wide text-gray-400 mb-4">Actions</h3>
+  <div class="flex gap-3">
+    <button class="btn btn-primary btn-sm">Clear Cache</button>
+    <button class="btn btn-sm bg-gray-600 hover:bg-gray-500">Reload Ad-block List</button>
+  </div>
+</div>
+{% endblock %}

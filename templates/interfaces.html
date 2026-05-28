@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex items-center justify-between mb-5">
+  <p class="text-gray-400 text-sm">{{ interfaces | length }} interface(s)</p>
+  <div x-data="{ open: false }">
+    <button @click="open = true" class="btn btn-primary">+ Add Interface</button>
+    <div x-show="open" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" @click.away="open = false">
+      <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700" @click.stop>
+        <h3 class="text-lg font-semibold mb-4">New Interface</h3>
+        <form hx-post="/api/v1/interfaces" hx-target="body" hx-swap="innerHTML" class="space-y-3">
+          <input name="name" placeholder="Interface name" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
+          <button type="submit" class="btn btn-primary w-full">Create</button>
+        </form>
+        <button @click="open = false" class="text-gray-400 text-sm mt-3">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="bg-gray-700/50 text-gray-400 uppercase text-xs tracking-wide">
+        <th class="text-left px-4 py-3">Name</th>
+        <th class="text-left px-4 py-3">Index</th>
+        <th class="text-left px-4 py-3">Status</th>
+        <th class="text-left px-4 py-3">MAC</th>
+        <th class="text-left px-4 py-3">Addresses</th>
+        <th class="text-left px-4 py-3">MTU</th>
+        <th class="text-left px-4 py-3">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for iface in interfaces %}
+      <tr class="border-t border-gray-700 hover:bg-gray-700/30">
+        <td class="px-4 py-3 font-medium">{{ iface.name }}</td>
+        <td class="px-4 py-3 text-gray-400">{{ iface.index }}</td>
+        <td class="px-4 py-3">
+          {% if iface.up %}
+          <span class="text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full text-xs">UP</span>
+          {% else %}
+          <span class="text-red-400 bg-red-400/10 px-2 py-0.5 rounded-full text-xs">DOWN</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3 font-mono text-xs">{{ iface.mac }}</td>
+        <td class="px-4 py-3 font-mono text-xs">{{ iface.addresses | join(sep=", ") }}</td>
+        <td class="px-4 py-3">{{ iface.mtu }}</td>
+        <td class="px-4 py-3">
+          <div class="flex gap-1">
+            <button hx-post="/api/v1/interfaces/{{ iface.name }}/up" hx-target="body" hx-swap="innerHTML" class="btn btn-sm btn-primary">Up</button>
+            <button hx-post="/api/v1/interfaces/{{ iface.name }}/down" hx-target="body" hx-swap="innerHTML" class="btn btn-sm bg-gray-600 hover:bg-gray-500">Down</button>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">No interfaces found</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

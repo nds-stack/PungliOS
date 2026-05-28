@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex items-center justify-between mb-5">
+  <p class="text-gray-400 text-sm">{{ packages | length }} package(s)</p>
+  <div x-data="{ open: false }">
+    <button @click="open = true" class="btn btn-primary">+ Add Package</button>
+    <div x-show="open" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" @click.away="open = false">
+      <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700" @click.stop>
+        <h3 class="text-lg font-semibold mb-4">New Package</h3>
+        <form hx-post="/api/v1/packages" hx-target="body" hx-swap="innerHTML" class="space-y-3">
+          <input name="name" placeholder="Package name" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
+          <input name="description" placeholder="Description" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+          <input name="session_timeout" type="number" placeholder="Session timeout (seconds)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+          <button type="submit" class="btn btn-primary w-full">Create</button>
+        </form>
+        <button @click="open = false" class="text-gray-400 text-sm mt-3">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+  {% for pkg in packages %}
+  <div class="bg-gray-800 rounded-xl border border-gray-700 p-5">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-semibold text-lg">{{ pkg.name }}</h3>
+      <button hx-delete="/api/v1/packages/{{ pkg.name }}" hx-target="body" hx-swap="innerHTML" hx-confirm="Delete package {{ pkg.name }}?" class="text-red-400 hover:text-red-300 text-sm">Delete</button>
+    </div>
+    <p class="text-sm text-gray-400 mb-3">{{ pkg.description | default(value="") }}</p>
+    <div class="space-y-2 text-sm">
+      {% for profile in pkg.profiles %}
+      <div class="bg-gray-700/50 rounded-lg p-3">
+        <div class="font-medium">{{ profile.name }}</div>
+        <div class="flex justify-between text-xs mt-1">
+          <span class="text-gray-400">DL {{ profile.download_rate }} bps</span>
+          <span class="text-gray-400">UL {{ profile.upload_rate }} bps</span>
+        </div>
+      </div>
+      {% endfor %}
+      {% if pkg.session_timeout %}
+      <div class="flex justify-between pt-2 border-t border-gray-700">
+        <span class="text-gray-400">Session Timeout</span>
+        <span>{{ pkg.session_timeout }}s</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div class="col-span-full text-center text-gray-500 py-12">No packages defined</div>
+  {% endfor %}
+</div>
+{% endblock %}

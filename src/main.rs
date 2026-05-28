@@ -1,4 +1,6 @@
 use clap::Parser;
+#[cfg(feature = "api")]
+use punglios::api::AppState;
 use punglios::cli::CliCommand;
 use punglios::cli::commands::config::ConfigCommands;
 use punglios::cli::commands::firewall::FirewallCommands;
@@ -32,6 +34,21 @@ async fn main() -> anyhow::Result<()> {
             tracing::info!("Interactive shell launched");
             // TODO: ratatui TUI
             println!("Interactive shell — coming soon");
+        }
+        #[cfg(feature = "api")]
+        CliCommand::Serve { addr } => {
+            let state = AppState::new();
+            let app = punglios::api::router(state.clone());
+
+            #[cfg(feature = "web")]
+            let app = {
+                let web_router = punglios::web::router(state.clone());
+                app.merge(web_router)
+            };
+
+            let listener = tokio::net::TcpListener::bind(&addr).await?;
+            tracing::info!("API server listening on {addr}");
+            axum::serve(listener, app).await?;
         }
     }
 

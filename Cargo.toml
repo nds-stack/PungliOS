@@ -10,6 +10,7 @@ default = ["mock"]
 mock = []                              # In-memory mock backend (tests / Windows dev)
 real = ["dep:nftnl", "dep:nlink"]      # Production backend via netlink (Linux only)
 api = ["dep:axum", "dep:tower"]
+web = ["api", "dep:tera"]              # Web UI dashboard (includes API)
 
 [dependencies]
 # Async runtime
@@ -52,6 +53,9 @@ nlink = { version = "0.17", features = ["full"], optional = true }
 axum = { version = "0.8", optional = true }
 tower = { version = "0.5", optional = true }
 serde_json = "1"
+
+# Web UI (optional, requires api)
+tera = { version = "1", optional = true }
 
 [build-dependencies]
 
