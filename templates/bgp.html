@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
+  <div class="stat-card">
+    <p class="text-gray-400 text-sm">Peers</p>
+    <p class="text-3xl font-bold mt-2">{{ peers | length }}</p>
+    <p class="text-xs text-gray-500 mt-1">Configured</p>
+  </div>
+  <div class="stat-card">
+    <p class="text-gray-400 text-sm">Established</p>
+    <p class="text-3xl font-bold mt-2">{{ bgp_status.value.up_peers | default(value=0) }}</p>
+    <p class="text-xs text-gray-500 mt-1">Up peers</p>
+  </div>
+  <div class="stat-card">
+    <p class="text-gray-400 text-sm">Router ID</p>
+    <p class="text-xl font-bold mt-2 font-mono">{{ bgp_status.value.router_id | default(value="—") }}</p>
+    <p class="text-xs text-gray-500 mt-1">Local AS: {{ bgp_status.value.local_asn | default(value=0) }}</p>
+  </div>
+</div>
+
+<div class="flex items-center justify-between mb-5">
+  <p class="text-gray-400 text-sm">{{ peers | length }} BGP peer(s)</p>
+  <div x-data="{ open: false }">
+    <button @click="open = true" class="btn btn-primary">+ Add Peer</button>
+    <div x-show="open" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" @click.away="open = false">
+      <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700" @click.stop>
+        <h3 class="text-lg font-semibold mb-4">New BGP Peer</h3>
+        <form hx-post="/api/v1/routing/bgp/peers" hx-ext="json-enc" hx-target="body" hx-swap="innerHTML" class="space-y-3">
+          <input name="neighbor_ip" placeholder="Neighbor IP" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
+          <input name="remote_asn" type="number" placeholder="Remote ASN" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
+          <input name="local_asn" type="number" placeholder="Local ASN" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
+          <input name="description" placeholder="Description (optional)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+          <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="enabled" checked class="rounded"> Enabled</label>
+          <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="multihop" class="rounded"> Multihop</label>
+          <button type="submit" class="btn btn-primary w-full">Add Peer</button>
+        </form>
+        <button @click="open = false" class="text-gray-400 text-sm mt-3">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="bg-gray-700/50 text-gray-400 uppercase text-xs tracking-wide">
+        <th class="text-left px-4 py-3">Neighbor</th>
+        <th class="text-left px-4 py-3">Remote ASN</th>
+        <th class="text-left px-4 py-3">Local ASN</th>
+        <th class="text-left px-4 py-3">Multihop</th>
+        <th class="text-left px-4 py-3">Status</th>
+        <th class="text-left px-4 py-3">Description</th>
+        <th class="text-left px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in peers %}
+      <tr class="border-t border-gray-700 hover:bg-gray-700/30">
+        <td class="px-4 py-3 font-mono text-xs">{{ p.neighbor_ip }}</td>
+        <td class="px-4 py-3">AS{{ p.remote_asn }}</td>
+        <td class="px-4 py-3">AS{{ p.local_asn }}</td>
+        <td class="px-4 py-3">{{ p.multihop }}</td>
+        <td class="px-4 py-3">
+          {% if p.enabled %}
+          <span class="text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full text-xs">ENABLED</span>
+          {% else %}
+          <span class="text-gray-500 bg-gray-700 px-2 py-0.5 rounded-full text-xs">DISABLED</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3 text-gray-400">{{ p.description | default(value="-") }}</td>
+        <td class="px-4 py-3">
+          <button hx-delete="/api/v1/routing/bgp/peers/{{ p.neighbor_ip }}" hx-target="body" hx-swap="innerHTML" hx-confirm="Remove BGP peer {{ p.neighbor_ip }}?" class="btn btn-sm btn-danger">Remove</button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">No BGP peers configured</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

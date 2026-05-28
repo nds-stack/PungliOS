@@ -46,6 +46,9 @@ pub fn router(state: AppState) -> Router {
         .route("/web/dhcp", get(dhcp_page))
         .route("/web/dns", get(dns_page))
         .route("/web/monitoring", get(monitoring_page))
+        .route("/web/routing/bgp", get(bgp_page))
+        .route("/web/routing/ospf", get(ospf_page))
+        .route("/web/routing/table", get(routing_table_page))
         .with_state(ws)
 }
 
@@ -290,4 +293,74 @@ async fn monitoring_page(State(ws): State<WebState>) -> Html<String> {
     ctx.insert("page_title", "Monitoring");
     ctx.insert("conntrack_count", &ct_count);
     render(&ws.tmpl, "monitoring.html", &ctx)
+}
+
+async fn bgp_page(State(ws): State<WebState>) -> Html<String> {
+    let mut ctx = Context::new();
+    let peers = ws
+        .app
+        .routing_mgr
+        .list_bgp_peers()
+        .await
+        .unwrap_or_default();
+    let status = ws.app.routing_mgr.get_bgp_status().await.ok();
+    let peer_items: Vec<serde_json::Value> = peers
+        .iter()
+        .map(|p| {
+            serde_json::json!({
+                "neighbor_ip": p.neighbor_ip,
+                "remote_asn": p.remote_asn,
+                "local_asn": p.local_asn,
+                "multihop": p.multihop,
+                "enabled": p.enabled,
+                "description": p.description,
+            })
+        })
+        .collect();
+    ctx.insert("page", "bgp");
+    ctx.insert("page_title", "BGP Routing");
+    ctx.insert("peers", &peer_items);
+    ctx.insert("bgp_status", &status);
+    render(&ws.tmpl, "bgp.html", &ctx)
+}
+
+async fn ospf_page(State(ws): State<WebState>) -> Html<String> {
+    let mut ctx = Context::new();
+    let areas = ws
+        .app
+        .routing_mgr
+        .list_ospf_areas()
+        .await
+        .unwrap_or_default();
+    let status = ws.app.routing_mgr.get_ospf_status().await.ok();
+    let area_items: Vec<serde_json::Value> = areas
+        .iter()
+        .map(|a| {
+            serde_json::json!({
+                "area_id": a.area_id,
+                "interfaces": a.interfaces,
+                "networks": a.networks,
+                "enabled": a.enabled,
+            })
+        })
+        .collect();
+    ctx.insert("page", "ospf");
+    ctx.insert("page_title", "OSPF Routing");
+    ctx.insert("areas", &area_items);
+    ctx.insert("ospf_status", &status);
+    render(&ws.tmpl, "ospf.html", &ctx)
+}
+
+async fn routing_table_page(State(ws): State<WebState>) -> Html<String> {
+    let mut ctx = Context::new();
+    let routes = ws
+        .app
+        .routing_mgr
+        .get_routing_table(None)
+        .await
+        .unwrap_or_default();
+    ctx.insert("page", "routing-table");
+    ctx.insert("page_title", "Routing Table");
+    ctx.insert("routes", &routes);
+    render(&ws.tmpl, "routing_table.html", &ctx)
 }

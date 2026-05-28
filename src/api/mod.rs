@@ -2,7 +2,7 @@
 
 use crate::traits::MockBackend;
 use crate::traits::NetlinkNat;
-use crate::{conntrack, firewall, net, qos, user};
+use crate::{conntrack, firewall, net, qos, routing, user};
 use axum::{
     Json, Router,
     extract::{Path, State},
@@ -26,6 +26,7 @@ pub struct AppState {
     pub qos_mgr: Arc<qos::QosManager<MockBackend>>,
     pub ct_mgr: Arc<Mutex<conntrack::ConntrackManager<MockBackend>>>,
     pub user_mgr: Arc<user::UserManager<user::MockUserBackend>>,
+    pub routing_mgr: Arc<routing::DynamicRoutingManager<routing::MockDynamicRouting>>,
     pub monitoring_tx: broadcast::Sender<String>,
 }
 
@@ -50,6 +51,9 @@ impl AppState {
                 backend.clone(),
             ))),
             user_mgr: Arc::new(user::UserManager::new(user_backend)),
+            routing_mgr: Arc::new(routing::DynamicRoutingManager::new(
+                routing::MockDynamicRouting::new(),
+            )),
             monitoring_tx,
         }
     }
@@ -87,6 +91,15 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/qos/classes/{classid}", delete(delete_class))
         .route("/api/v1/conntrack/stats", get(get_conntrack_stats))
         .route("/api/v1/conntrack/max", put(set_conntrack_max))
+        .route("/api/v1/routing/bgp/peers", get(list_bgp_peers))
+        .route("/api/v1/routing/bgp/peers", post(add_bgp_peer))
+        .route("/api/v1/routing/bgp/peers/{ip}", delete(remove_bgp_peer))
+        .route("/api/v1/routing/bgp/status", get(get_bgp_status))
+        .route("/api/v1/routing/ospf/areas", get(list_ospf_areas))
+        .route("/api/v1/routing/ospf/areas", post(add_ospf_area))
+        .route("/api/v1/routing/ospf/areas/{id}", delete(remove_ospf_area))
+        .route("/api/v1/routing/ospf/status", get(get_ospf_status))
+        .route("/api/v1/routing/table", get(list_dynamic_routes))
         .route("/api/v1/users", get(list_users))
         .route("/api/v1/users", post(create_user))
         .route("/api/v1/users/{username}", put(update_user))
@@ -491,6 +504,112 @@ async fn set_conntrack_max(
     let mut ct = s.ct_mgr.lock().await;
     match ct.set_max(max).await {
         Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+// ─── Dynamic Routing ──────────────────────────────────
+
+async fn list_bgp_peers(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.routing_mgr.list_bgp_peers().await {
+        Ok(peers) => Json(serde_json::json!(peers)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+async fn add_bgp_peer(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let peer = routing::BgpPeer {
+        neighbor_ip: body["neighbor_ip"].as_str().unwrap_or("").to_string(),
+        remote_asn: body["remote_asn"].as_u64().unwrap_or(0) as u32,
+        local_asn: body["local_asn"].as_u64().unwrap_or(0) as u32,
+        multihop: body["multihop"].as_bool().unwrap_or(false),
+        password: body["password"].as_str().map(|s| s.to_string()),
+        enabled: body["enabled"].as_bool().unwrap_or(true),
+        description: body["description"].as_str().map(|s| s.to_string()),
+    };
+    match s.routing_mgr.add_bgp_peer(&peer).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+async fn remove_bgp_peer(
+    State(s): State<AppState>,
+    Path(ip): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.routing_mgr.remove_bgp_peer(&ip).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+async fn get_bgp_status(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.routing_mgr.get_bgp_status().await {
+        Ok(status) => Json(serde_json::json!(status)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+async fn list_ospf_areas(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.routing_mgr.list_ospf_areas().await {
+        Ok(areas) => Json(serde_json::json!(areas)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+async fn add_ospf_area(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let area = routing::OspfArea {
+        area_id: body["area_id"].as_str().unwrap_or("").to_string(),
+        interfaces: body["interfaces"]
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        networks: body["networks"]
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        enabled: body["enabled"].as_bool().unwrap_or(true),
+    };
+    match s.routing_mgr.add_ospf_area(&area).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+async fn remove_ospf_area(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.routing_mgr.remove_ospf_area(&id).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+async fn get_ospf_status(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.routing_mgr.get_ospf_status().await {
+        Ok(status) => Json(serde_json::json!(status)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+async fn list_dynamic_routes(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.routing_mgr.get_routing_table(None).await {
+        Ok(routes) => Json(serde_json::json!(routes)),
         Err(e) => err(e.to_string()),
     }
 }

@@ -19,6 +19,7 @@ pub mod firewall;
 pub mod net;
 pub mod pppoe;
 pub mod qos;
+pub mod routing;
 pub mod traits;
 pub mod user;
 #[cfg(feature = "web")]
