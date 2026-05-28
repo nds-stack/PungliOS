@@ -88,15 +88,16 @@ async fn test_pppoe_discovery_with_radius_auth() {
 async fn test_user_radius_pppoe_full_flow() {
     // Setup user
     let user_mgr = setup_user_manager();
-    let user = User {
+    let mut user = User {
         username: "user1".into(),
-        password: "pass1".into(),
+        password_hash: String::new(),
         enabled: true,
         package_name: Some("silver".into()),
         ip_address: Some(Ipv4Addr::new(10, 0, 1, 100)),
         mac_address: None,
         notes: None,
     };
+    user.set_password("pass1");
     user_mgr.create_user(user).await.unwrap();
 
     // Create package
@@ -138,15 +139,16 @@ async fn test_user_create_and_radius_auth() {
 
     // Create user via UserManager
     let user_mgr = UserManager::new(user_backend.clone());
-    let user = User {
+    let mut user = User {
         username: "testuser".into(),
-        password: "testpass".into(),
+        password_hash: String::new(),
         enabled: true,
         package_name: None,
         ip_address: Some(Ipv4Addr::new(10, 0, 1, 50)),
         mac_address: None,
         notes: None,
     };
+    user.set_password("testpass");
     user_mgr.create_user(user).await.unwrap();
 
     // Create RADIUS backend with same user
@@ -169,15 +171,16 @@ async fn test_user_create_and_radius_auth() {
 #[tokio::test]
 async fn test_package_assign_bandwidth_flow() {
     let user_mgr = setup_user_manager();
-    let user = User {
+    let mut user = User {
         username: "bob".into(),
-        password: "bobpass".into(),
+        password_hash: String::new(),
         enabled: true,
         package_name: None,
         ip_address: None,
         mac_address: Some("de:ad:be:ef:00:01".into()),
         notes: None,
     };
+    user.set_password("bobpass");
     user_mgr.create_user(user).await.unwrap();
 
     // Create packages
