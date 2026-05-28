@@ -22,15 +22,15 @@
   <p class="text-gray-400 text-sm">{{ interfaces | length }} interface(s)</p>
   <div x-data="{ open: false }">
     <button @click="open = true" class="btn btn-primary">+ Add Interface</button>
-    <div x-show="open" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" @click.away="open = false">
+    <div x-show="open" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
       <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700" @click.stop>
         <h3 class="text-lg font-semibold mb-4">New WireGuard Interface</h3>
-        <form hx-post="/api/v1/wireguard/interfaces" hx-ext="json-enc" hx-target="body" hx-swap="innerHTML" class="space-y-3">
+        <form @submit.prevent="fetch('/api/v1/wireguard/interfaces',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$event.target.name.value,public_key:$event.target.pubkey.value,listen_port:parseInt($event.target.port.value)||51820,mtu:parseInt($event.target.mtu.value)||1420,enabled:$event.target.enabled.checked})}).then(r=>{if(r.ok)location.reload()})" class="space-y-3">
           <input name="name" placeholder="Interface name (e.g. wg0)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
-          <input name="public_key" placeholder="Public key (base64)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
-          <input name="listen_port" type="number" placeholder="Listen port (default: 51820)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+          <input name="pubkey" placeholder="Public key (base64)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
+          <input name="port" type="number" placeholder="Listen port (default: 51820)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
           <input name="mtu" type="number" placeholder="MTU (default: 1420)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
-          <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="enabled" checked class="rounded"> Enabled</label>
+          <label class="flex items-center gap-2 text-sm"><input name="enabled" type="checkbox" checked class="rounded"> Enabled</label>
           <button type="submit" class="btn btn-primary w-full">Create</button>
         </form>
         <button @click="open = false" class="text-gray-400 text-sm mt-3">Cancel</button>
@@ -54,32 +54,68 @@
         {% else %}
         <span class="text-gray-500 bg-gray-700 px-2 py-0.5 rounded-full text-xs">DOWN</span>
         {% endif %}
-        <button hx-delete="/api/v1/wireguard/interfaces/{{ iface.name }}" hx-target="body" hx-swap="innerHTML" hx-confirm="Delete interface {{ iface.name }}?" class="btn btn-sm btn-danger">Delete</button>
+        <button @click="if(confirm('Delete {{ iface.name }}?')){fetch('/api/v1/wireguard/interfaces/{{ iface.name }}',{method:'DELETE'}).then(r=>{if(r.ok)location.reload()})}" class="btn btn-sm btn-danger">Delete</button>
       </div>
     </div>
     <div class="p-5">
-      <div x-data="{ peerOpen: false }">
+      <div x-data="{ peerModal: false }">
         <div class="flex items-center justify-between mb-3">
-          <p class="text-sm text-gray-400">Peers</p>
-          <button @click="peerOpen = true" class="btn btn-sm btn-primary">+ Add Peer</button>
+          <p class="text-sm text-gray-400">{{ iface.peers | length }} peer(s)</p>
+          <button @click="peerModal = true" class="btn btn-sm btn-primary">+ Add Peer</button>
         </div>
-        <div x-show="peerOpen" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" @click.away="peerOpen = false">
+        <div x-show="peerModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
           <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700" @click.stop>
             <h3 class="text-lg font-semibold mb-4">New Peer on {{ iface.name }}</h3>
-            <form hx-post="/api/v1/wireguard/interfaces/{{ iface.name }}/peers" hx-ext="json-enc" hx-target="body" hx-swap="innerHTML" class="space-y-3">
-              <input name="public_key" placeholder="Public key (base64)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
-              <input name="allowed_ips" placeholder="Allowed IPs (comma separated)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
-              <input name="endpoint" placeholder="Endpoint (host:port)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
-              <input name="persistent_keepalive" type="number" placeholder="Persistent keepalive (seconds)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
-              <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="enabled" checked class="rounded"> Enabled</label>
+            <form @submit.prevent="fetch('/api/v1/wireguard/interfaces/{{ iface.name }}/peers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({public_key:$event.target.pk.value,allowed_ips:$event.target.ips.value.split(',').map(function(s){return s.trim()}).filter(Boolean),endpoint:$event.target.ep.value||null,persistent_keepalive:parseInt($event.target.kal.value)||null,enabled:$event.target.en.checked})}).then(r=>{if(r.ok)location.reload()})" class="space-y-3">
+              <input name="pk" placeholder="Public key (base64)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
+              <input name="ips" placeholder="Allowed IPs (e.g. 10.0.0.2/32, 10.0.0.3/32)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+              <input name="ep" placeholder="Endpoint (host:port)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+              <input name="kal" type="number" placeholder="Keepalive (seconds)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+              <label class="flex items-center gap-2 text-sm"><input name="en" type="checkbox" checked class="rounded"> Enabled</label>
               <button type="submit" class="btn btn-primary w-full">Add Peer</button>
             </form>
-            <button @click="peerOpen = false" class="text-gray-400 text-sm mt-3">Cancel</button>
+            <button @click="peerModal = false" class="text-gray-400 text-sm mt-3">Cancel</button>
           </div>
         </div>
-        <div hx-trigger="load" hx-get="/api/v1/wireguard/interfaces/{{ iface.name }}/peers" hx-swap="innerHTML">
-          <p class="text-sm text-gray-500">Loading peers...</p>
+
+        {% if iface.peers | length > 0 %}
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-gray-400 text-xs uppercase tracking-wide">
+                <th class="text-left px-3 py-2">Public Key</th>
+                <th class="text-left px-3 py-2">Allowed IPs</th>
+                <th class="text-left px-3 py-2">Endpoint</th>
+                <th class="text-left px-3 py-2">Keepalive</th>
+                <th class="text-left px-3 py-2">Status</th>
+                <th class="text-left px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in iface.peers %}
+              <tr class="border-t border-gray-700">
+                <td class="px-3 py-2 font-mono text-xs">{{ p.public_key[:16] }}…</td>
+                <td class="px-3 py-2 font-mono text-xs">{{ p.allowed_ips | join(sep=", ") }}</td>
+                <td class="px-3 py-2 font-mono text-xs">{{ p.endpoint | default(value="-") }}</td>
+                <td class="px-3 py-2">{{ p.persistent_keepalive | default(value="-") }}</td>
+                <td class="px-3 py-2">
+                  {% if p.enabled %}
+                  <span class="text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full text-xs">OK</span>
+                  {% else %}
+                  <span class="text-gray-500 bg-gray-700 px-2 py-0.5 rounded-full text-xs">OFF</span>
+                  {% endif %}
+                </td>
+                <td class="px-3 py-2">
+                  <button @click="if(confirm('Remove peer?')){fetch('/api/v1/wireguard/interfaces/{{ iface.name }}/peers/{{ p.public_key }}',{method:'DELETE'}).then(r=>{if(r.ok)location.reload()})}" class="btn btn-sm btn-danger">Remove</button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
+        {% else %}
+        <p class="text-sm text-gray-500 py-3 text-center">No peers configured</p>
+        {% endif %}
       </div>
     </div>
   </div>

@@ -370,18 +370,33 @@ async fn wireguard_page(State(ws): State<WebState>) -> Html<String> {
     let mut ctx = Context::new();
     let ifaces = ws.app.wg_mgr.list_interfaces().await.unwrap_or_default();
     let status = ws.app.wg_mgr.get_status().await.ok();
-    let iface_items: Vec<serde_json::Value> = ifaces
-        .iter()
-        .map(|i| {
-            serde_json::json!({
-                "name": i.name,
-                "listen_port": i.listen_port,
-                "public_key": i.public_key,
-                "enabled": i.enabled,
-                "mtu": i.mtu,
+    let mut iface_items: Vec<serde_json::Value> = Vec::new();
+
+    for i in &ifaces {
+        let peers = ws.app.wg_mgr.list_peers(&i.name).await.unwrap_or_default();
+        let peer_items: Vec<serde_json::Value> = peers
+            .iter()
+            .map(|p| {
+                serde_json::json!({
+                    "public_key": p.public_key,
+                    "allowed_ips": p.allowed_ips,
+                    "endpoint": p.endpoint,
+                    "endpoint_port": p.endpoint_port,
+                    "persistent_keepalive": p.persistent_keepalive,
+                    "enabled": p.enabled,
+                })
             })
-        })
-        .collect();
+            .collect();
+        iface_items.push(serde_json::json!({
+            "name": i.name,
+            "listen_port": i.listen_port,
+            "public_key": i.public_key,
+            "enabled": i.enabled,
+            "mtu": i.mtu,
+            "peers": peer_items,
+        }));
+    }
+
     ctx.insert("page", "wireguard");
     ctx.insert("page_title", "WireGuard VPN");
     ctx.insert("interfaces", &iface_items);
