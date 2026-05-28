@@ -6,7 +6,7 @@ PungliOS adalah platform manajemen jaringan ISP/WISP berbasis Rust yang terinspi
 
 Bedanya? Kalo pungli bikin rakyat susah, PungliOS bikin **ISP untung besar** dengan infrastruktur open-source yang kenceng, stabil, dan zero toleransi terhadap *latency* — tapi toleransi tinggi terhadap sarkasme.
 
-> **Status:** 🟢 Fase 1 (Core Networking) selesai — interface, firewall, QoS, NAT, routing, conntrack, config, CLI/TUI. 🟢 Fase 2 (PPPoE + Auth) selesai — discovery, PPP, RADIUS, user management, DHCP server.
+> **Status:** 🟢 Fase 1 (Core Networking) selesai — interface, firewall, QoS, NAT, routing, conntrack, config, CLI/TUI. 🟢 Fase 2 (PPPoE + Auth + Services) selesai — discovery, PPP, RADIUS, user management, DHCP server, DNS forwarder + adblock.
 > **Target:** Linux (x86_64, aarch64). *Buat Windows? Lu kira ini aplikasi pajak?*
 
 ---

@@ -14,8 +14,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **RADIUS Client (2.4):** RadiusAttribute + RadiusPacket (RFC 2865/2866), MockRadiusBackend, RadiusClient (auth + accounting start/stop/interim), RadiusSessionManager
 - **User Management (2.5):** User CRUD, UserPackage with bandwidth profiles, UserBackend trait + MockUserBackend, UserManager with IP/MAC binding and authentication
 - **DHCP Server (2.6):** DHCP packet (DORA), IpPool management, lease tracking with expiry, reserved IPs, Discover→Offer→Request→Ack state machine
+- **DNS Forwarder (2.7):** DNS packet encode/decode (RFC 1035), in-memory cache with TTL eviction, adblock domain blacklist with wildcard support, localhost resolution
 - **Bandwidth via RADIUS (2.8):** Parsing MikroTik Rate-Limit from Filter-ID attributes, WISPr bandwidth attributes, BandwidthProfile conversion
 - **Integration Tests (2.9):** 9 new tests covering PPPoE+RADIUS+User end-to-end, multi-session, LCP+PAP integration
+- **Benchmarks (2.10):** 6 new criterion benchmarks for PPPoE discovery, RADIUS auth, DHCP DORA, user CRUD, LCP negotiation, bandwidth parsing
 
 ### Fixed
 

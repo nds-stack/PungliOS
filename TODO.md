@@ -7,7 +7,7 @@
 ## Phase 1: Core Infrastructure (MVP)
 
 **Target:** Single box bisa jadi router dengan QoS per-user
-**Deadline:** TBD
+**Status:** 🟢 **COMPLETE**
 
 | # | Task | Komponen | Depends On | Status | Priority |
 |---|------|----------|------------|--------|----------|
@@ -37,7 +37,7 @@
 ## Phase 2: PPPoE + Authentication
 
 **Target:** Handle 10K+ PPPoE sessions dengan RADIUS
-**Deadline:** TBD
+**Status:** 🟢 **COMPLETE**
 
 | # | Task | Komponen | Status | Priority |
 |---|------|----------|--------|----------|
@@ -47,10 +47,10 @@
 | 2.4 | RADIUS client (auth + accounting + CoA) | RADIUS | 🟢 DONE | P0 |
 | 2.5 | User management (CRUD, group/paket, bandwidth profile) | User Mgmt | 🟢 DONE | P1 |
 | 2.6 | DHCP server (DORA, IP pool, lease mgmt) | DHCP | 🟢 DONE | P1 |
-| 2.7 | DNS forwarder (cache + adblock) | DNS | 🔴 TODO | P2 |
+| 2.7 | DNS forwarder (cache + adblock) | DNS | 🟢 DONE | P2 |
 | 2.8 | Per-user bandwidth via RADIUS attributes | QoS | 🟢 DONE | P1 |
 | 2.9 | Integration tests (Phase 2 features) | Testing | 🟢 DONE | P0 |
-| 2.10 | Benchmarks (PPPoE session scale) | Performance | 🔴 TODO | P1 |
+| 2.10 | Benchmarks (PPPoE session scale) | Performance | 🟢 DONE | P1 |
 
 **Success Metrics:**
 - [ ] 10K+ concurrent PPPoE sessions
