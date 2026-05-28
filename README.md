@@ -6,7 +6,7 @@ PungliOS adalah platform manajemen jaringan ISP/WISP berbasis Rust yang terinspi
 
 Bedanya? Kalo pungli bikin rakyat susah, PungliOS bikin **ISP untung besar** dengan infrastruktur open-source yang kenceng, stabil, dan zero toleransi terhadap *latency* — tapi toleransi tinggi terhadap sarkasme.
 
-> **Status:** 🟢 Fase 1 (Core Networking) selesai — interface, firewall, QoS, NAT, routing, conntrack, config, CLI/TUI. 🟢 Fase 2 (PPPoE + Auth + Services) selesai — discovery, PPP, RADIUS, user management, DHCP server, DNS forwarder + adblock.
+> **Status:** 🟢 Fase 1 (Core Networking) selesai — interface, firewall, QoS, NAT, routing, conntrack, config, CLI/TUI. 🟢 Fase 2 (PPPoE + Auth + Services) selesai — discovery, PPP, RADIUS, user management, DHCP server, DNS forwarder + adblock. 🟢 Fase 3.1 (REST API) selesai — HTTP API Axum dengan 25 endpoint. 🟢 1.1b (Real Backend) selesai — nlink-based untuk 6 trait, aktif via `--features real`.
 > **Target:** Linux (x86_64, aarch64). *Buat Windows? Lu kira ini aplikasi pajak?*
 
 ---
@@ -73,6 +73,8 @@ Config engine make YAML untuk manusia (biar bisa dibaca, beda sama APBN) dan bin
 - **UserManager** — CRUD user + package. `assign_package("budi", "silver")` — kasih paket kayak bagi jabatan.
 - **DhcpServer** — `handle_packet()` otomatis route Discover→Offer, Request→Ack. Pool IP: `192.168.1.100` sampai `.200`. Kayak lapak pasar — siapa cepat dia dapet, yang telat ya tunggu expired.
 - **DnsForwarder** — DNS server dengan cache TTL + adblock. `resolve_sync(query)` → response. Domain yang masuk blacklist dapet NXDOMAIN kayak situs diblokir Menkominfo. Wildcard pattern: `*.iklan.com`.
+- **RealBackend (1.1b)** — Implementasi 6 trait pake `nlink` crate, akses kernel langsung via netlink socket. Aktif pake `--features real`. Jalan di Linux doang.
+- **REST API (3.1)** — Axum HTTP server, 25 endpoint, JSON response. Aktif pake `--features api`. Port 3000 default.
 
 ### CLI
 
@@ -82,7 +84,7 @@ punglios firewall <zone|rule> <list|get|create|delete|add-rule|remove-rule|flush
 punglios qos <attach|add-class|remove-class|list>
 punglios config <show|apply|commit|rollback|diff>
 punglios shell          # TUI — Dashboard, Interfaces, Firewall, QoS, Config, Logs
-punglios pppoe          # (TODO: CLI — discovery + session management, masih manual)
+punglios api            # Start REST API server (--features api)
 ```
 
 ---
@@ -102,12 +104,13 @@ PungliOS nangani error dengan integritas tinggi — beda sama e-KTP yang typo di
 ## Keterbatasan (Syarat & Ketentuan Berlaku)
 
 - **Linux-only** — networking code butuh kernel Linux. Kalo lu pake Windows, beli router beneran atau pake Linux VM. Ini bukan aplikasi SPBE.
-- **Mock backend aja untuk sekarang** — real backend (1.1b) nunggu deploy ke Linux VM. Iya, kayak proyek pemerintah: bartanggung jawab news, bartanggung jawab di atas kertas.
+- **Real backend (1.1b) tersedia** — aktif lewat `--features real`. Pake `nlink` crate buat akses kernel langsung (netlink). Sebagian method udah jalan (interface up/down/mtu, list routes, conntrack sysctl), sisanya masih `bail!("not implemented")` — tunggu kontribusi atau PR.
 - **No hot-reload** — perubahan config harus `apply`/`commit` dulu. Beda sama APBN yang bisa di-revisi tengah jalan.
 - **PPPoE + RADIUS sudah jalan** — Rust-native PPPoE discovery (PADI/PADO/PADR/PADS/PADT), LCP/IPCP negotiation, PAP/CHAP auth, RADIUS client (auth + accounting). **Udah bisa konek, tinggal nyari duit.**
 - **DHCP server sudah jalan** — Discover→Offer→Request→Ack full DORA, IP pool management, lease tracking, reserved IPs. Kayak bagi-bagi sembako, cuma ini gak antri.
 - **User management sudah jalan** — CRUD user, paket/bandwidth profile, IP/MAC binding. Data base user yang **beneran** akurat — beda sama e-KTP.
 - **DNS forwarder sudah jalan** — Cache + adblock + wildcard blocking. Mirip sensor internet: domain yang masuk daftar hitam ditolak, yang lain lolos.
+- **REST API sudah jalan** — Axum HTTP server dengan 25 endpoint. `cargo run --features api`. Port 3000.
 - **REST API + Web UI** masih fase berikutnya. Sabar, ini bukan bansos.
 - **Single-node** — belum ada clustering. Kalo lu mau HA, colokin 2 router terus doa. Masih lebih canggih dari server KPU.
 - **Benchmark pake mock** — real benchmark butuh Linux deployment. Ini bukan hasil survei yang bisa dimanipulasi.
@@ -290,6 +293,11 @@ punglios config commit    # Simpen. Gak bisa dicairin dua kali.
 cargo build --release
 ./target/release/punglios interface list        # Liat interface (aman)
 ./target/release/punglios shell                 # TUI — lebih canggih dari e-KTP
+./target/release/punglios api                   # Start REST API (butuh --features api)
+
+# Kalo di Linux VPS (root)
+cargo build --release --features real
+./target/release/punglios interface list        # Liat interface beneran
 ```
 
 ---

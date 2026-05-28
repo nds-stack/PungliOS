@@ -1,6 +1,6 @@
 # TODO.md — PungliOS Roadmap & Milestones
 
-> Status: 🟢 Phase 1 Complete | 🟢 Phase 2 Complete
+> Status: 🟢 Phase 1 Complete | 🟢 Phase 2 Complete | 🟡 Phase 3.1 Done (3.2-3.8 TODO)
 
 ---
 
@@ -13,7 +13,7 @@
 |---|------|----------|------------|--------|----------|
 | 1.1 | Setup project structure (`cargo init`, folder layout) | Foundation | — | 🟢 DONE | P0 |
 | 1.1a | Core traits (`NetlinkIfaces`, `NetlinkFirewall`, `NetlinkQos`) + mock backend (in-memory) | Test Infra | 1.1 | 🟢 DONE | P0 |
-| 1.1b | Real backend (`nftnl` + `nlink` integration) | Test Infra | 1.1a | 🔴 TODO | P1 |
+| 1.1b | Real backend (`nlink` integration — 6 traits implemented) | Test Infra | 1.1a | 🟢 DONE | P1 |
 | 1.2 | Interface manager (add/delete/list, VLAN, bridges via traits) | Networking | 1.1a | 🟢 DONE | P0 |
 | 1.3 | nftables wrapper (zone-based model via traits) | Firewall | 1.1a, 1.2 | 🟢 DONE | P0 |
 | 1.4 | tc QoS engine (HTB + fq_codel, per-user class via traits) | QoS | 1.1a, 1.2 | 🟢 DONE | P1 |
@@ -66,7 +66,7 @@
 
 | # | Task | Komponen | Status | Priority |
 |---|------|----------|--------|----------|
-| 3.1 | REST API (tonic/gRPC, full CRUD semua resource) | API | 🔴 TODO | P0 |
+| 3.1 | REST API (Axum, full CRUD semua resource) | API | 🟢 DONE | P0 |
 | 3.2 | Web UI dashboard (Leptos/Yew) | Web UI | 🔴 TODO | P1 |
 | 3.3 | Real-time bandwidth monitoring | Monitoring | 🔴 TODO | P1 |
 | 3.4 | CPU & conntrack monitoring | Monitoring | 🔴 TODO | P1 |
