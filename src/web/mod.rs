@@ -49,6 +49,7 @@ pub fn router(state: AppState) -> Router {
         .route("/web/routing/bgp", get(bgp_page))
         .route("/web/routing/ospf", get(ospf_page))
         .route("/web/routing/table", get(routing_table_page))
+        .route("/web/wireguard", get(wireguard_page))
         .with_state(ws)
 }
 
@@ -363,4 +364,27 @@ async fn routing_table_page(State(ws): State<WebState>) -> Html<String> {
     ctx.insert("page_title", "Routing Table");
     ctx.insert("routes", &routes);
     render(&ws.tmpl, "routing_table.html", &ctx)
+}
+
+async fn wireguard_page(State(ws): State<WebState>) -> Html<String> {
+    let mut ctx = Context::new();
+    let ifaces = ws.app.wg_mgr.list_interfaces().await.unwrap_or_default();
+    let status = ws.app.wg_mgr.get_status().await.ok();
+    let iface_items: Vec<serde_json::Value> = ifaces
+        .iter()
+        .map(|i| {
+            serde_json::json!({
+                "name": i.name,
+                "listen_port": i.listen_port,
+                "public_key": i.public_key,
+                "enabled": i.enabled,
+                "mtu": i.mtu,
+            })
+        })
+        .collect();
+    ctx.insert("page", "wireguard");
+    ctx.insert("page_title", "WireGuard VPN");
+    ctx.insert("interfaces", &iface_items);
+    ctx.insert("wg_status", &status);
+    render(&ws.tmpl, "wireguard.html", &ctx)
 }

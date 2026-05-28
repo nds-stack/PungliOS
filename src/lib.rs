@@ -24,6 +24,7 @@ pub mod traits;
 pub mod user;
 #[cfg(feature = "web")]
 pub mod web;
+pub mod wireguard;
 
 pub mod prelude {
     pub use crate::traits::*;

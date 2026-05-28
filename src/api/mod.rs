@@ -2,7 +2,7 @@
 
 use crate::traits::MockBackend;
 use crate::traits::NetlinkNat;
-use crate::{conntrack, firewall, net, qos, routing, user};
+use crate::{conntrack, firewall, net, qos, routing, user, wireguard};
 use axum::{
     Json, Router,
     extract::{Path, State},
@@ -27,6 +27,7 @@ pub struct AppState {
     pub ct_mgr: Arc<Mutex<conntrack::ConntrackManager<MockBackend>>>,
     pub user_mgr: Arc<user::UserManager<user::MockUserBackend>>,
     pub routing_mgr: Arc<routing::DynamicRoutingManager<routing::MockDynamicRouting>>,
+    pub wg_mgr: Arc<wireguard::WireGuardManager<wireguard::MockWireguardBackend>>,
     pub monitoring_tx: broadcast::Sender<String>,
 }
 
@@ -53,6 +54,9 @@ impl AppState {
             user_mgr: Arc::new(user::UserManager::new(user_backend)),
             routing_mgr: Arc::new(routing::DynamicRoutingManager::new(
                 routing::MockDynamicRouting::new(),
+            )),
+            wg_mgr: Arc::new(wireguard::WireGuardManager::new(
+                wireguard::MockWireguardBackend::new(),
             )),
             monitoring_tx,
         }
@@ -100,6 +104,25 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/routing/ospf/areas/{id}", delete(remove_ospf_area))
         .route("/api/v1/routing/ospf/status", get(get_ospf_status))
         .route("/api/v1/routing/table", get(list_dynamic_routes))
+        .route("/api/v1/wireguard/interfaces", get(list_wg_interfaces))
+        .route("/api/v1/wireguard/interfaces", post(create_wg_interface))
+        .route(
+            "/api/v1/wireguard/interfaces/{name}",
+            delete(delete_wg_interface),
+        )
+        .route(
+            "/api/v1/wireguard/interfaces/{name}/peers",
+            get(list_wg_peers),
+        )
+        .route(
+            "/api/v1/wireguard/interfaces/{name}/peers",
+            post(add_wg_peer),
+        )
+        .route(
+            "/api/v1/wireguard/interfaces/{name}/peers/{pubkey}",
+            delete(remove_wg_peer),
+        )
+        .route("/api/v1/wireguard/status", get(get_wg_status))
         .route("/api/v1/users", get(list_users))
         .route("/api/v1/users", post(create_user))
         .route("/api/v1/users/{username}", put(update_user))
@@ -628,6 +651,90 @@ async fn get_ospf_status(State(s): State<AppState>) -> Json<serde_json::Value> {
 async fn list_dynamic_routes(State(s): State<AppState>) -> Json<serde_json::Value> {
     match s.routing_mgr.get_routing_table(None).await {
         Ok(routes) => Json(serde_json::json!(routes)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+// ─── WireGuard ─────────────────────────────────────────
+
+async fn list_wg_interfaces(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.wg_mgr.list_interfaces().await {
+        Ok(list) => Json(serde_json::json!(list)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+async fn create_wg_interface(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let iface = wireguard::WireGuardInterface {
+        name: body["name"].as_str().unwrap_or("").to_string(),
+        private_key: body["private_key"].as_str().map(|s| s.to_string()),
+        listen_port: json_u64(&body["listen_port"]).unwrap_or(51820) as u16,
+        public_key: body["public_key"].as_str().unwrap_or("").to_string(),
+        enabled: json_bool(&body["enabled"]).unwrap_or(true),
+        mtu: json_u64(&body["mtu"]).unwrap_or(1420) as u16,
+    };
+    match s.wg_mgr.create_interface(&iface).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+async fn delete_wg_interface(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.wg_mgr.delete_interface(&name).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+async fn list_wg_peers(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.wg_mgr.list_peers(&name).await {
+        Ok(peers) => Json(serde_json::json!(peers)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+async fn add_wg_peer(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let peer = wireguard::WireGuardPeer {
+        interface: name,
+        public_key: body["public_key"].as_str().unwrap_or("").to_string(),
+        allowed_ips: json_str_array(&body["allowed_ips"]),
+        endpoint: body["endpoint"].as_str().map(|s| s.to_string()),
+        endpoint_port: json_u64(&body["endpoint_port"]).map(|v| v as u16),
+        persistent_keepalive: json_u64(&body["persistent_keepalive"]).map(|v| v as u16),
+        enabled: json_bool(&body["enabled"]).unwrap_or(true),
+    };
+    match s.wg_mgr.add_peer(&peer).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+async fn remove_wg_peer(
+    State(s): State<AppState>,
+    Path((name, pubkey)): Path<(String, String)>,
+) -> Json<serde_json::Value> {
+    match s.wg_mgr.remove_peer(&name, &pubkey).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+async fn get_wg_status(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.wg_mgr.get_status().await {
+        Ok(status) => Json(serde_json::json!(status)),
         Err(e) => err(e.to_string()),
     }
 }

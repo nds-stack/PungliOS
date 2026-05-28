@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
+  <div class="stat-card">
+    <p class="text-gray-400 text-sm">Interfaces</p>
+    <p class="text-3xl font-bold mt-2">{{ wg_status.interfaces_count | default(value=0) }}</p>
+    <p class="text-xs text-gray-500 mt-1">Configured</p>
+  </div>
+  <div class="stat-card">
+    <p class="text-gray-400 text-sm">Peers</p>
+    <p class="text-3xl font-bold mt-2">{{ wg_status.total_peers | default(value=0) }}</p>
+    <p class="text-xs text-gray-500 mt-1">Total</p>
+  </div>
+  <div class="stat-card">
+    <p class="text-gray-400 text-sm">Active</p>
+    <p class="text-3xl font-bold mt-2">{{ wg_status.enabled_interfaces | default(value=0) }}</p>
+    <p class="text-xs text-gray-500 mt-1">Enabled interfaces</p>
+  </div>
+</div>
+
+<div class="flex items-center justify-between mb-5">
+  <p class="text-gray-400 text-sm">{{ interfaces | length }} interface(s)</p>
+  <div x-data="{ open: false }">
+    <button @click="open = true" class="btn btn-primary">+ Add Interface</button>
+    <div x-show="open" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" @click.away="open = false">
+      <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700" @click.stop>
+        <h3 class="text-lg font-semibold mb-4">New WireGuard Interface</h3>
+        <form hx-post="/api/v1/wireguard/interfaces" hx-ext="json-enc" hx-target="body" hx-swap="innerHTML" class="space-y-3">
+          <input name="name" placeholder="Interface name (e.g. wg0)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
+          <input name="public_key" placeholder="Public key (base64)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
+          <input name="listen_port" type="number" placeholder="Listen port (default: 51820)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+          <input name="mtu" type="number" placeholder="MTU (default: 1420)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+          <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="enabled" checked class="rounded"> Enabled</label>
+          <button type="submit" class="btn btn-primary w-full">Create</button>
+        </form>
+        <button @click="open = false" class="text-gray-400 text-sm mt-3">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="space-y-4">
+  {% for iface in interfaces %}
+  <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+    <div class="px-5 py-4 bg-gray-700/30 flex items-center justify-between">
+      <div>
+        <h3 class="font-semibold">{{ iface.name }}</h3>
+        <p class="text-xs text-gray-400 font-mono mt-0.5">{{ iface.public_key }}</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="text-xs text-gray-400">Port {{ iface.listen_port }} · MTU {{ iface.mtu }}</span>
+        {% if iface.enabled %}
+        <span class="text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full text-xs">ACTIVE</span>
+        {% else %}
+        <span class="text-gray-500 bg-gray-700 px-2 py-0.5 rounded-full text-xs">DOWN</span>
+        {% endif %}
+        <button hx-delete="/api/v1/wireguard/interfaces/{{ iface.name }}" hx-target="body" hx-swap="innerHTML" hx-confirm="Delete interface {{ iface.name }}?" class="btn btn-sm btn-danger">Delete</button>
+      </div>
+    </div>
+    <div class="p-5">
+      <div x-data="{ peerOpen: false }">
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-sm text-gray-400">Peers</p>
+          <button @click="peerOpen = true" class="btn btn-sm btn-primary">+ Add Peer</button>
+        </div>
+        <div x-show="peerOpen" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" @click.away="peerOpen = false">
+          <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700" @click.stop>
+            <h3 class="text-lg font-semibold mb-4">New Peer on {{ iface.name }}</h3>
+            <form hx-post="/api/v1/wireguard/interfaces/{{ iface.name }}/peers" hx-ext="json-enc" hx-target="body" hx-swap="innerHTML" class="space-y-3">
+              <input name="public_key" placeholder="Public key (base64)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
+              <input name="allowed_ips" placeholder="Allowed IPs (comma separated)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+              <input name="endpoint" placeholder="Endpoint (host:port)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+              <input name="persistent_keepalive" type="number" placeholder="Persistent keepalive (seconds)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+              <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="enabled" checked class="rounded"> Enabled</label>
+              <button type="submit" class="btn btn-primary w-full">Add Peer</button>
+            </form>
+            <button @click="peerOpen = false" class="text-gray-400 text-sm mt-3">Cancel</button>
+          </div>
+        </div>
+        <div hx-trigger="load" hx-get="/api/v1/wireguard/interfaces/{{ iface.name }}/peers" hx-swap="innerHTML">
+          <p class="text-sm text-gray-500">Loading peers...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="text-center text-gray-500 py-12">No WireGuard interfaces configured</div>
+  {% endfor %}
+</div>
+{% endblock %}
