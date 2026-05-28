@@ -56,7 +56,7 @@ pub struct FirewallRule {
     pub src_port: Option<u16>,
     pub dst_port: Option<u16>,
     pub action: FirewallAction,
-    pub positions: u32,
+    pub position: u32,
 }
 
 #[derive(Debug, Clone)]

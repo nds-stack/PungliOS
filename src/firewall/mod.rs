@@ -100,7 +100,7 @@ mod tests {
                 src_port: None,
                 dst_port: Some(443),
                 action: FirewallAction::Accept,
-                positions: 0,
+                position: 0,
             })
             .await
             .unwrap();
@@ -125,7 +125,7 @@ mod tests {
                 src_port: None,
                 dst_port: None,
                 action: FirewallAction::Drop,
-                positions: 0,
+                position: 0,
             })
             .await
             .unwrap();
@@ -149,7 +149,7 @@ mod tests {
                 src_port: None,
                 dst_port: None,
                 action: FirewallAction::Accept,
-                positions: 0,
+                position: 0,
             })
             .await
             .unwrap();

@@ -71,7 +71,7 @@ async fn test_full_network_setup() {
             src_port: None,
             dst_port: Some(80),
             action: FirewallAction::Accept,
-            positions: 0,
+            position: 0,
         })
         .await
         .unwrap();

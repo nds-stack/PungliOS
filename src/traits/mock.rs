@@ -315,7 +315,7 @@ mod tests {
             src_port: None,
             dst_port: Some(80),
             action: FirewallAction::Accept,
-            positions: 0,
+            position: 0,
         };
         let handle = NetlinkFirewall::add_rule(&backend, &rule).await.unwrap();
         assert!(handle > 0);

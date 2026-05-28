@@ -11,7 +11,7 @@ pub fn allow(zone: &str, chain: &str) -> FirewallRule {
         src_port: None,
         dst_port: None,
         action: FirewallAction::Accept,
-        positions: 0,
+        position: 0,
     }
 }
 
@@ -26,7 +26,7 @@ pub fn drop(zone: &str, chain: &str) -> FirewallRule {
         src_port: None,
         dst_port: None,
         action: FirewallAction::Drop,
-        positions: 0,
+        position: 0,
     }
 }
 
@@ -41,6 +41,6 @@ pub fn reject(zone: &str, chain: &str) -> FirewallRule {
         src_port: None,
         dst_port: None,
         action: FirewallAction::Reject,
-        positions: 0,
+        position: 0,
     }
 }
