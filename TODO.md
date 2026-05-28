@@ -199,12 +199,12 @@ Foundation (1.1)
 
 | # | Item | File | Prioritas | Status |
 |---|------|------|-----------|--------|
-| A1 | **Update package API** — endpoint `PUT /api/v1/packages/{name}` untuk edit profiles & description | `src/api/mod.rs` | Low | 📝 Tercatat |
-| A2 | **DNS forwarder UDP** — implementasi `local_ip` + `next_id` yang masih `#[allow(dead_code)]`, biar DNS beneran forward query ke upstream | `src/dns/mod.rs` | Medium | 📝 Tercatat |
+| A1 | **Update package API** — endpoint `PUT /api/v1/packages/{name}` untuk edit profiles & description | `src/api/mod.rs` | Low | 🟢 DONE |
+| A2 | **DNS forwarder UDP** — implementasi `local_ip` + `next_id` yang masih `#[allow(dead_code)]`, biar DNS beneran forward query ke upstream | `src/dns/mod.rs` | Medium | 🟢 DONE |
 | A3 | **Benchmark kompetitor** — bandingkan RealBackend throughput vs `nft`/`iptables`/`tc` CLI langsung (butuh Linux VPS) | `benches/` | Low | 📝 Tercatat |
 | A4 | **Split large files** — pecah `pppoe/auth.rs` (983 baris), `pppoe/session.rs` (1009 baris) jadi folder module | `src/pppoe/` | Low | 📝 Tercatat |
-| A5 | **Real backend completion** — implementasi method yang masih `bail!("not implemented")`: interface create/delete, QoS class add/delete, NAT rule delete/list | `src/net/backend.rs` | Medium | 📝 Tercatat |
-| A6 | **REST API monitoring endpoints** — real-time bandwidth, CPU, conntrack stats via SSE atau WebSocket | `src/api/` | Medium | 📝 Tercatat |
+| A5 | **Real backend completion** — implementasi method yang masih `bail!("not implemented")`: interface create/delete, QoS class add/delete, NAT rule delete/list | `src/net/backend.rs` | Medium | 🟢 DONE |
+| A6 | **REST API monitoring endpoints** — real-time bandwidth, CPU, conntrack stats via SSE atau WebSocket | `src/api/` | Medium | 🟢 DONE |
 
 ---
 
