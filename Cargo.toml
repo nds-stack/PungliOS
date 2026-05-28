@@ -9,6 +9,7 @@ authors = ["PungliOS Team"]
 default = ["mock"]
 mock = []                              # In-memory mock backend (tests / Windows dev)
 real = ["dep:nftnl", "dep:nlink"]      # Production backend via netlink (Linux only)
+api = ["dep:axum", "dep:tower"]
 
 [dependencies]
 # Async runtime
@@ -46,6 +47,13 @@ uuid = { version = "1", features = ["v4"] }
 # Real backend: kernel interface (Linux only, optional)
 nftnl = { version = "0.9", optional = true }
 nlink = { version = "0.17", features = ["full"], optional = true }
+
+# HTTP API (optional)
+axum = { version = "0.8", optional = true }
+tower = { version = "0.5", optional = true }
+serde_json = "1"
+
+[build-dependencies]
 
 [dev-dependencies]
 tokio-test = "0.4"

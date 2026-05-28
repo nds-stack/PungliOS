@@ -1,18 +1,18 @@
 #[cfg(feature = "real")]
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 #[cfg(feature = "real")]
 use async_trait::async_trait;
 #[cfg(feature = "real")]
-use std::net::{IpAddr, Ipv4Addr};
-#[cfg(feature = "real")]
-use nlink::netlink::nftables::{Chain, Family, Hook, Policy, ChainType, Priority, Rule};
-#[cfg(feature = "real")]
 use nlink::netlink::messages::RouteMessage;
 #[cfg(feature = "real")]
+use nlink::netlink::nftables::{Chain, ChainType, Family, Hook, Policy, Priority, Rule};
+#[cfg(feature = "real")]
 use nlink::netlink::{Connection, Nftables};
+#[cfg(feature = "real")]
+use std::net::{IpAddr, Ipv4Addr};
 
-use crate::traits::netlink::*;
 use crate::traits::netlink::Route as PungliRoute;
+use crate::traits::netlink::*;
 
 // ─── RealBackend ─────────────────────────────────────
 
@@ -66,7 +66,10 @@ impl NetlinkIfaces for RealBackend {
     }
 
     async fn get(&self, name: &str) -> Result<Interface> {
-        let link = self.rt_conn.get_link_by_name(name).await?
+        let link = self
+            .rt_conn
+            .get_link_by_name(name)
+            .await?
             .ok_or_else(|| anyhow::anyhow!("interface '{name}' not found"))?;
         Ok(link_to_interface(&link))
     }
@@ -114,18 +117,21 @@ impl NetlinkIfaces for RealBackend {
 impl NetlinkFirewall for RealBackend {
     async fn list_rules(&self, zone: &str) -> Result<Vec<FirewallRule>> {
         let rules = self.nf_conn.list_rules(zone, Family::Inet).await?;
-        Ok(rules.iter().map(|ri| FirewallRule {
-            handle: ri.handle,
-            zone: zone.to_string(),
-            chain: ri.chain.clone(),
-            protocol: None,
-            src_addr: None,
-            dst_addr: None,
-            src_port: None,
-            dst_port: None,
-            action: FirewallAction::Accept,
-            position: 0,
-        }).collect())
+        Ok(rules
+            .iter()
+            .map(|ri| FirewallRule {
+                handle: ri.handle,
+                zone: zone.to_string(),
+                chain: ri.chain.clone(),
+                protocol: None,
+                src_addr: None,
+                dst_addr: None,
+                src_port: None,
+                dst_port: None,
+                action: FirewallAction::Accept,
+                position: 0,
+            })
+            .collect())
     }
 
     async fn add_rule(&self, rule: &FirewallRule) -> Result<u64> {
@@ -147,7 +153,9 @@ impl NetlinkFirewall for RealBackend {
     }
 
     async fn delete_rule(&self, handle: u64) -> Result<()> {
-        self.nf_conn.del_rule("punglios", "default", Family::Inet, handle).await?;
+        self.nf_conn
+            .del_rule("punglios", "default", Family::Inet, handle)
+            .await?;
         Ok(())
     }
 
@@ -277,7 +285,10 @@ impl NetlinkNat for RealBackend {
 #[cfg(feature = "real")]
 fn route_message_to_route(msg: &RouteMessage) -> PungliRoute {
     PungliRoute {
-        destination: msg.destination().copied().unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED)),
+        destination: msg
+            .destination()
+            .copied()
+            .unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED)),
         prefix: msg.dst_len(),
         nexthop: msg.gateway().copied(),
         iface: msg.oif().map(|_| "unknown".to_string()),

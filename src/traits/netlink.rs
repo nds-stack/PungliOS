@@ -1,10 +1,11 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use serde::Serialize;
 use std::net::IpAddr;
 
 // ─── Interfaces ───────────────────────────────────────
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Interface {
     pub name: String,
     pub index: u32,
@@ -37,7 +38,7 @@ pub trait NetlinkIfaces: Send + Sync {
 
 // ─── Firewall / nftables ──────────────────────────────
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum FirewallAction {
     Accept,
     Drop,
@@ -45,7 +46,7 @@ pub enum FirewallAction {
     Jump(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct FirewallRule {
     pub handle: u64,
     pub zone: String,
@@ -59,7 +60,7 @@ pub struct FirewallRule {
     pub position: u32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct FirewallZone {
     pub name: String,
     pub interfaces: Vec<String>,
@@ -79,14 +80,14 @@ pub trait NetlinkFirewall: Send + Sync {
 
 // ─── QoS / tc ─────────────────────────────────────────
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum QdiscKind {
     Htb,
     FqCodel,
     Cake,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct QdiscConfig {
     pub kind: QdiscKind,
     pub iface: String,
@@ -96,7 +97,7 @@ pub struct QdiscConfig {
     pub ceil: Option<u64>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ClassConfig {
     pub iface: String,
     pub classid: u32,
@@ -118,7 +119,7 @@ pub trait NetlinkQos: Send + Sync {
 
 // ─── Connection Tracking ──────────────────────────────
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ConntrackEntry {
     pub protocol: String,
     pub src: IpAddr,
@@ -142,7 +143,7 @@ pub trait NetlinkConntrack: Send + Sync {
 
 // ─── NAT ──────────────────────────────────────────────
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct NatRule {
     pub handle: u64,
     pub iface: String,
@@ -153,7 +154,7 @@ pub struct NatRule {
     pub to_port: Option<u16>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum NatKind {
     Snat,
     Dnat,
@@ -169,7 +170,7 @@ pub trait NetlinkNat: Send + Sync {
 
 // ─── Routing ──────────────────────────────────────────
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Route {
     pub destination: IpAddr,
     pub prefix: u8,

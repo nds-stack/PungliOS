@@ -9,6 +9,7 @@ extern crate tempfile;
 #[cfg(test)]
 extern crate tokio_test;
 
+pub mod api;
 pub mod cli;
 pub mod config;
 pub mod conntrack;
@@ -25,6 +26,8 @@ pub mod prelude {
     pub use crate::traits::*;
 }
 
+#[cfg(feature = "api")]
+use axum as _;
 use bincode as _;
 use clap as _;
 use futures as _;
@@ -37,9 +40,12 @@ use nlink as _;
 use ratatui as _;
 use rkyv as _;
 use serde as _;
+use serde_json as _;
 use serde_yaml as _;
 use thiserror as _;
 use tokio as _;
+#[cfg(feature = "api")]
+use tower as _;
 use tracing as _;
 use tracing_subscriber as _;
 use uuid as _;
