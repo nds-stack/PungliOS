@@ -125,6 +125,38 @@ fn err(msg: String) -> Json<serde_json::Value> {
     Json(serde_json::json!({"error": msg}))
 }
 
+// Robust JSON value parsing for HTMX form submissions
+fn json_u64(v: &serde_json::Value) -> Option<u64> {
+    v.as_u64()
+        .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+}
+
+fn json_bool(v: &serde_json::Value) -> Option<bool> {
+    v.as_bool().or_else(|| match v.as_str() {
+        Some("on" | "true" | "1") => Some(true),
+        Some(_) => Some(false),
+        None => None,
+    })
+}
+
+fn json_str_array(v: &serde_json::Value) -> Vec<String> {
+    v.as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|e| e.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .or_else(|| {
+            v.as_str().map(|s| {
+                s.split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect()
+            })
+        })
+        .unwrap_or_default()
+}
+
 async fn health_check() -> Json<serde_json::Value> {
     ok()
 }
@@ -523,11 +555,11 @@ async fn add_bgp_peer(
 ) -> Json<serde_json::Value> {
     let peer = routing::BgpPeer {
         neighbor_ip: body["neighbor_ip"].as_str().unwrap_or("").to_string(),
-        remote_asn: body["remote_asn"].as_u64().unwrap_or(0) as u32,
-        local_asn: body["local_asn"].as_u64().unwrap_or(0) as u32,
-        multihop: body["multihop"].as_bool().unwrap_or(false),
+        remote_asn: json_u64(&body["remote_asn"]).unwrap_or(0) as u32,
+        local_asn: json_u64(&body["local_asn"]).unwrap_or(0) as u32,
+        multihop: json_bool(&body["multihop"]).unwrap_or(false),
         password: body["password"].as_str().map(|s| s.to_string()),
-        enabled: body["enabled"].as_bool().unwrap_or(true),
+        enabled: json_bool(&body["enabled"]).unwrap_or(true),
         description: body["description"].as_str().map(|s| s.to_string()),
     };
     match s.routing_mgr.add_bgp_peer(&peer).await {
@@ -566,23 +598,9 @@ async fn add_ospf_area(
 ) -> Json<serde_json::Value> {
     let area = routing::OspfArea {
         area_id: body["area_id"].as_str().unwrap_or("").to_string(),
-        interfaces: body["interfaces"]
-            .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                    .collect()
-            })
-            .unwrap_or_default(),
-        networks: body["networks"]
-            .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                    .collect()
-            })
-            .unwrap_or_default(),
-        enabled: body["enabled"].as_bool().unwrap_or(true),
+        interfaces: json_str_array(&body["interfaces"]),
+        networks: json_str_array(&body["networks"]),
+        enabled: json_bool(&body["enabled"]).unwrap_or(true),
     };
     match s.routing_mgr.add_ospf_area(&area).await {
         Ok(_) => ok(),

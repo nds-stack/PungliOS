@@ -8,12 +8,12 @@
   </div>
   <div class="stat-card">
     <p class="text-gray-400 text-sm">SPF Runs</p>
-    <p class="text-3xl font-bold mt-2">{{ ospf_status.value.spf_runs | default(value=0) }}</p>
+    <p class="text-3xl font-bold mt-2">{{ ospf_status.spf_runs | default(value=0) }}</p>
     <p class="text-xs text-gray-500 mt-1">Algorithm executions</p>
   </div>
   <div class="stat-card">
     <p class="text-gray-400 text-sm">Router ID</p>
-    <p class="text-xl font-bold mt-2 font-mono">{{ ospf_status.value.router_id | default(value="—") }}</p>
+    <p class="text-xl font-bold mt-2 font-mono">{{ ospf_status.router_id | default(value="—") }}</p>
     <p class="text-xs text-gray-500 mt-1">OSPF router</p>
   </div>
 </div>

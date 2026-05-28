@@ -6,6 +6,7 @@ pub struct BgpPeer {
     pub remote_asn: u32,
     pub local_asn: u32,
     pub multihop: bool,
+    #[serde(skip_serializing)]
     pub password: Option<String>,
     pub enabled: bool,
     pub description: Option<String>,

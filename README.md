@@ -74,7 +74,30 @@ Config engine make YAML untuk manusia (biar bisa dibaca, beda sama APBN) dan bin
 - **DhcpServer** — `handle_packet()` otomatis route Discover→Offer, Request→Ack. Pool IP: `192.168.1.100` sampai `.200`. Kayak lapak pasar — siapa cepat dia dapet, yang telat ya tunggu expired.
 - **DnsForwarder** — DNS server dengan cache TTL + adblock. `resolve_sync(query)` → response. Domain yang masuk blacklist dapet NXDOMAIN kayak situs diblokir Menkominfo. Wildcard pattern: `*.iklan.com`.
 - **RealBackend (1.1b)** — Implementasi 6 trait pake `nlink` crate, akses kernel langsung via netlink socket. Aktif pake `--features real`. Jalan di Linux doang.
-- **REST API (3.1)** — Axum HTTP server, 25 endpoint, JSON response. Aktif pake `--features api`. Port 3000 default.
+- **REST API (3.1)** — Axum HTTP server, 25+ endpoint, JSON response. Aktif pake `--features api`. Port 3000 default.
+
+### Dynamic Routing (4.1)
+
+| Trait / Module | Method | Mirip Kayak |
+|-------|--------|-------------|
+| `DynamicRouting` | BGP: `add/remove/list peer`, `status`; OSPF: `add/remove/list area`, `status`; routing table | Kayak lobby DPR — BGP (negosiasi antar partai), OSPF (rapat internal), hasilnya rute baru buat "lancar" |
+
+#### REST API
+| Endpoint | Method | Deskripsi |
+|----------|--------|-----------|
+| `/api/v1/routing/bgp/peers` | GET | Daftar semua peer BGP |
+| `/api/v1/routing/bgp/peers` | POST | Tambah peer BGP baru |
+| `/api/v1/routing/bgp/peers/{ip}` | DELETE | Hapus peer BGP |
+| `/api/v1/routing/bgp/status` | GET | Status BGP (ASN lokal, prefix) |
+| `/api/v1/routing/ospf/areas` | GET | Daftar semua area OSPF |
+| `/api/v1/routing/ospf/areas` | POST | Tambah area OSPF baru |
+| `/api/v1/routing/ospf/areas/{id}` | DELETE | Hapus area OSPF |
+| `/api/v1/routing/table` | GET | Tabel routing dinamis |
+
+#### Web UI
+- **BGP Routing** (`/web/routing/bgp`) — Kelola peer BGP, lihat status
+- **OSPF Routing** (`/web/routing/ospf`) — Kelola area OSPF
+- **Route Table** (`/web/routing/table`) — Lihat tabel routing dinamis
 
 ### CLI
 
