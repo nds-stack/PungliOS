@@ -111,15 +111,16 @@ fn bench_phase2(c: &mut Criterion) {
                 let backend = MockUserBackend::new();
 
                 for i in 0..100 {
-                    let user = User {
+                    let mut user = User {
                         username: format!("user{i}"),
-                        password: format!("pass{i}"),
+                        password_hash: String::new(),
                         enabled: true,
                         package_name: None,
                         ip_address: Some(Ipv4Addr::new(10, 0, 0, i)),
                         mac_address: None,
                         notes: None,
                     };
+                    user.set_password(&format!("pass{i}"));
                     backend.create_user(user).await.unwrap();
                 }
 
