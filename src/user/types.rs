@@ -1,5 +1,12 @@
 use serde::{Deserialize, Serialize};
+use std::hash::{Hash, Hasher};
 use std::net::Ipv4Addr;
+
+fn hash_password(plain: &str) -> String {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    plain.hash(&mut hasher);
+    format!("{:016x}", hasher.finish())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BandwidthProfile {
@@ -52,7 +59,7 @@ impl UserPackage {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct User {
     pub username: String,
-    pub password: String,
+    pub password_hash: String,
     pub enabled: bool,
     pub package_name: Option<String>,
     pub ip_address: Option<Ipv4Addr>,
@@ -61,18 +68,23 @@ pub struct User {
 }
 
 impl User {
+    pub fn set_password(&mut self, plain: &str) {
+        self.password_hash = hash_password(plain);
+    }
+
+    pub fn verify_password(&self, plain: &str) -> bool {
+        self.password_hash == hash_password(plain)
+    }
+
     pub fn validate(&self) -> Result<(), String> {
         if self.username.is_empty() {
             return Err("username cannot be empty".into());
         }
-        if self.password.is_empty() {
-            return Err("password cannot be empty".into());
+        if self.password_hash.is_empty() || self.password_hash.len() < 16 {
+            return Err("password hash not set or invalid".into());
         }
         if self.username.len() < 3 {
             return Err("username must be at least 3 characters".into());
-        }
-        if self.password.len() < 4 {
-            return Err("password must be at least 4 characters".into());
         }
         Ok(())
     }
@@ -202,43 +214,46 @@ mod tests {
 
     #[test]
     fn test_user_validation_valid() {
-        let u = User {
+        let mut u = User {
             username: "user1".into(),
-            password: "pass123".into(),
+            password_hash: String::new(),
             enabled: true,
             package_name: Some("silver".into()),
             ip_address: Some(Ipv4Addr::new(10, 0, 0, 5)),
             mac_address: Some("aa:bb:cc:dd:ee:ff".into()),
             notes: None,
         };
+        u.set_password("pass123");
         assert!(u.validate().is_ok());
     }
 
     #[test]
     fn test_user_validation_short_username() {
-        let u = User {
+        let mut u = User {
             username: "ab".into(),
-            password: "pass123".into(),
+            password_hash: String::new(),
             enabled: true,
             package_name: None,
             ip_address: None,
             mac_address: None,
             notes: None,
         };
+        u.set_password("pass123");
         assert!(u.validate().is_err());
     }
 
     #[test]
     fn test_user_validation_short_password() {
-        let u = User {
+        let mut u = User {
             username: "user1".into(),
-            password: "ab".into(),
+            password_hash: String::new(),
             enabled: true,
             package_name: None,
             ip_address: None,
             mac_address: None,
             notes: None,
         };
+        u.set_password("ab");
         assert!(u.validate().is_err());
     }
 }

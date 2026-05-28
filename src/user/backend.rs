@@ -146,7 +146,7 @@ impl UserBackend for MockUserBackend {
         if !user.enabled {
             bail!("user '{username}' is disabled");
         }
-        if user.password != password {
+        if !user.verify_password(password) {
             bail!("invalid password for '{username}'");
         }
         Ok(user)
@@ -176,15 +176,17 @@ mod tests {
     use super::*;
 
     fn test_user() -> User {
-        User {
+        let mut u = User {
             username: "testuser".into(),
-            password: "testpass".into(),
+            password_hash: String::new(),
             enabled: true,
             package_name: None,
             ip_address: None,
             mac_address: None,
             notes: None,
-        }
+        };
+        u.set_password("testpass");
+        u
     }
 
     #[tokio::test]

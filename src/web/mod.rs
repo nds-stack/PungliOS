@@ -213,7 +213,6 @@ async fn users_page(State(ws): State<WebState>) -> Html<String> {
         .map(|u| {
             serde_json::json!({
                 "username": u.username,
-                "password": u.password,
                 "enabled": u.enabled,
                 "package_name": u.package_name,
                 "ip_address": u.ip_address.map(|a| a.to_string()),

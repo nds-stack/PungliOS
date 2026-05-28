@@ -39,7 +39,11 @@
         <td class="px-4 py-3">{{ route.iface | default(value="-") }}</td>
         <td class="px-4 py-3">{{ route.metric | default(value="-") }}</td>
         <td class="px-4 py-3">
-          <button hx-post="/api/v1/routes/del" hx-vals='{"destination":"{{ route.destination }}","prefix":{{ route.prefix }}}' hx-target="body" hx-swap="innerHTML" hx-confirm="Delete route?" class="btn btn-sm btn-danger">Delete</button>
+          <form hx-post="/api/v1/routes/del" hx-ext="json-enc" hx-confirm="Delete route?" class="inline">
+            <input type="hidden" name="destination" value="{{ route.destination }}">
+            <input type="hidden" name="prefix" value="{{ route.prefix }}">
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+          </form>
         </td>
       </tr>
       {% else %}

@@ -132,15 +132,17 @@ mod tests {
     }
 
     fn test_user() -> User {
-        User {
+        let mut u = User {
             username: "user1".into(),
-            password: "pass1".into(),
+            password_hash: String::new(),
             enabled: true,
             package_name: None,
             ip_address: None,
             mac_address: None,
             notes: None,
-        }
+        };
+        u.set_password("pass1");
+        u
     }
 
     fn test_package(name: &str) -> UserPackage {

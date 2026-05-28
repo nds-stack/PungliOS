@@ -103,8 +103,17 @@ async fn create_interface(
     State(s): State<AppState>,
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
+    let name = body["name"].as_str().unwrap_or("").to_string();
+    if name.is_empty()
+        || name.len() > 15
+        || !name
+            .chars()
+            .all(|c| c.is_alphanumeric() || "_.-:".contains(c))
+    {
+        return err("invalid interface name: must be 1-15 chars, alphanumeric with _-.:".into());
+    }
     let config = crate::traits::InterfaceConfig {
-        name: body["name"].as_str().unwrap_or("").to_string(),
+        name,
         mtu: body["mtu"].as_u64().map(|v| v as u16),
         addresses: vec![],
         vlan_id: body["vlan_id"].as_u64().map(|v| v as u16),
@@ -481,10 +490,9 @@ async fn create_user(
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
     let username = body["username"].as_str().unwrap_or("user").to_string();
-    let password = body["password"].as_str().unwrap_or("pass").to_string();
-    let user = crate::user::types::User {
+    let mut user = crate::user::types::User {
         username,
-        password,
+        password_hash: String::new(),
         enabled: body["enabled"].as_bool().unwrap_or(true),
         package_name: body["package_name"].as_str().map(|s| s.to_string()),
         ip_address: body["ip_address"]
@@ -493,6 +501,9 @@ async fn create_user(
         mac_address: body["mac_address"].as_str().map(|s| s.to_string()),
         notes: body["notes"].as_str().map(|s| s.to_string()),
     };
+    if let Some(p) = body["password"].as_str() {
+        user.set_password(p);
+    }
     match s.user_mgr.create_user(user).await {
         Ok(_) => ok(),
         Err(e) => err(e.to_string()),
@@ -509,7 +520,7 @@ async fn update_user(
         Err(e) => return err(e.to_string()),
     };
     if let Some(p) = body["password"].as_str() {
-        user.password = p.to_string();
+        user.set_password(p);
     }
     if let Some(e) = body["enabled"].as_bool() {
         user.enabled = e;
@@ -611,7 +622,7 @@ async fn update_package(
         })
         .unwrap_or(pkg.profiles);
     let updated = crate::user::types::UserPackage {
-        name: body["name"].as_str().map(|s| s.to_string()).unwrap_or(name),
+        name,
         description: body["description"]
             .as_str()
             .map(|s| s.to_string())

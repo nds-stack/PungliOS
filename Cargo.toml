@@ -2,8 +2,12 @@
 name = "punglios"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
 description = "Rust-Native ISP/WISP Management Platform"
 authors = ["PungliOS Team"]
+
+[package.metadata.docs.rs]
+features = ["api", "web", "mock"]
 
 [features]
 default = ["mock"]
