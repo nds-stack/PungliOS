@@ -6,7 +6,7 @@ PungliOS adalah platform manajemen jaringan ISP/WISP berbasis Rust yang terinspi
 
 Bedanya? Kalo pungli bikin rakyat susah, PungliOS bikin **ISP untung besar** dengan infrastruktur open-source yang kenceng, stabil, dan zero toleransi terhadap *latency* — tapi toleransi tinggi terhadap sarkasme.
 
-> **Status:** Fase 1 selesai — core traits, manager, CLI/TUI, config engine, test, benchmark.
+> **Status:** 🟢 Fase 1 (Core Networking) selesai — interface, firewall, QoS, NAT, routing, conntrack, config, CLI/TUI. 🟢 Fase 2 (PPPoE + Auth) selesai — discovery, PPP, RADIUS, user management, DHCP server.
 > **Target:** Linux (x86_64, aarch64). *Buat Windows? Lu kira ini aplikasi pajak?*
 
 ---
@@ -50,6 +50,28 @@ Config engine make YAML untuk manusia (biar bisa dibaca, beda sama APBN) dan bin
 - **NatManager** — SNAT, DNAT, masquerade. Buat sembunyiin identitas: berguna kalo server lu diuber KPK.
 - **RouteManager** — routing static, prefix mask maksimal /128. Jalan buntu kalo lebih.
 
+### Trait Tambahan Phase 2 (4 Perppu)
+
+| Trait / Module | Method | Mirip Kayak |
+|-------|--------|-------------|
+| `PppoeBackend` | `send`, `recv`, `bind`, `unbind` | Pungli lewat pos jaga: ngirim amplop, terima lampu hijau |
+| `PppoeClient` | `discover`, `disconnect` | Ngurus izin — PADI → PADO → PADR → PADS, kayak ngurus KTP: datang, ngisi formulir, foto, bayar (kalo perlu "uang administrasi") |
+| `PppoeServer` | `process_one`, `PADI/PADO/PADR/PADS/PADT` | Pelayanan satu pintu — nunggu setoran, keluarin PADO kalo cocok, kalo gak ya ditolak kayak proposal bansos fiktif |
+| `PppNegotiation` | LCP, PAP/CHAP, IPCP | Negosiasi kayak lobby DPR: LCP (salam-salaman), PAP (isi formulir), CHAP (tanda tangan basah), IPCP (minta jatah IP) |
+| `RadiusClient` | `authenticate`, `accounting_start/stop/interim` | Mirip sistem pajak: tiap transaksi dicatat, kalo gak bayar ya diblokir |
+| `RadiusSessionManager` | `start/stop_accounting`, `update_stats` | Catet pemakaian kayak Ditjen Pajak: masuk berapa, keluar berapa, durasi berapa |
+| `UserManager` | `create/get/update/delete user`, `assign_package`, `assign_ip/mac` | Data base user kayak database kependudukan — bedanya ini **beneran** akurat |
+| `DhcpServer` | Discover→Offer→Request→Ack, IP pool, lease, reserved IPs | Ngasih IP kayak bagi-bagi sembako: cuma ini gak perlu antri, langsung dapet |
+
+### Manager API Tambahan
+
+- **PppoeClient** — `discover()` → `(session_id, ac_name)`. Mirip pengajuan KUR: ngirim permohonan (PADI), ditawarin (PADO), konfirmasi (PADR), dapet SK (PADS).
+- **PppoeServer** — `process_one(iface)` — terima setoran masuk, proses PADI/PADR, kirim PADO/PADS. Kalo penuh, ditolak kayak rumah sakit BPJS.
+- **PppNegotiation** — LCP + PAP/CHAP + IPCP. Client dan server mode. `start_lcp()` → `process_frame()` → `start_auth()` → `start_ipcp()`. Kayak ngurus proyek: LCP (MoU), auth (tanda tangan kontraktor), IPCP (cairin anggaran).
+- **RadiusClient** — `authenticate(username, password, calling_station_id)` → `RadiusPacket`. `accounting_start/stop/interim(...)` — laporan pertanggungjawaban fiktif.
+- **UserManager** — CRUD user + package. `assign_package("budi", "silver")` — kasih paket kayak bagi jabatan.
+- **DhcpServer** — `handle_packet()` otomatis route Discover→Offer, Request→Ack. Pool IP: `192.168.1.100` sampai `.200`. Kayak lapak pasar — siapa cepat dia dapet, yang telat ya tunggu expired.
+
 ### CLI
 
 ```
@@ -58,6 +80,7 @@ punglios firewall <zone|rule> <list|get|create|delete|add-rule|remove-rule|flush
 punglios qos <attach|add-class|remove-class|list>
 punglios config <show|apply|commit|rollback|diff>
 punglios shell          # TUI — Dashboard, Interfaces, Firewall, QoS, Config, Logs
+punglios pppoe          # (TODO: Phase 2 CLI — discovery + session management)
 ```
 
 ---
@@ -79,7 +102,10 @@ PungliOS nangani error dengan integritas tinggi — beda sama e-KTP yang typo di
 - **Linux-only** — networking code butuh kernel Linux. Kalo lu pake Windows, beli router beneran atau pake Linux VM. Ini bukan aplikasi SPBE.
 - **Mock backend aja untuk sekarang** — real backend (1.1b) nunggu deploy ke Linux VM. Iya, kayak proyek pemerintah: bartanggung jawab news, bartanggung jawab di atas kertas.
 - **No hot-reload** — perubahan config harus `apply`/`commit` dulu. Beda sama APBN yang bisa di-revisi tengah jalan.
-- **Fase 1 doang** — PPPoE, RADIUS, DHCP, DNS, REST API, Web UI masih fase berikutnya. Sabar, ini bukan bansos.
+- **PPPoE + RADIUS sudah jalan** — Rust-native PPPoE discovery (PADI/PADO/PADR/PADS/PADT), LCP/IPCP negotiation, PAP/CHAP auth, RADIUS client (auth + accounting). **Udah bisa konek, tinggal nyari duit.**
+- **DHCP server sudah jalan** — Discover→Offer→Request→Ack full DORA, IP pool management, lease tracking, reserved IPs. Kayak bagi-bagi sembako, cuma ini gak antri.
+- **User management sudah jalan** — CRUD user, paket/bandwidth profile, IP/MAC binding. Data base user yang **beneran** akurat — beda sama e-KTP.
+- **REST API + Web UI** masih fase berikutnya. Sabar, ini bukan bansos.
 - **Single-node** — belum ada clustering. Kalo lu mau HA, colokin 2 router terus doa. Masih lebih canggih dari server KPU.
 - **Benchmark pake mock** — real benchmark butuh Linux deployment. Ini bukan hasil survei yang bisa dimanipulasi.
 
@@ -130,8 +156,8 @@ Mau QoS kustom? Tinggal extend `QosManager` atau langsung pake `NetlinkQos` trai
 | Config | YAML + bincode | CLI/Winbox | UCI | CLI ala Juniper |
 | Transaksional | ✅ Ya (bisa rollback) | ❌ Gak | ❌ Gak | ✅ Ya |
 | QoS | HTB + fq_codel | HTB + SFQ + PCQ | SQM (cake) | HTB + fq_codel |
-| PPPoE | **Rust-native** (Phase 2) | Built-in | pppd | pppd |
-| RADIUS | **Rust-native** (Phase 2) | Built-in | freeradius | freeradius |
+| PPPoE | **✅ Rust-native** | Built-in | pppd | pppd |
+| RADIUS | **✅ Rust-native** | Built-in | freeradius | freeradius |
 | Bahasa | **Rust** (aman) | C (berbahaya) | C (berbahaya) | Python |
 | Safety | ✅ Memory safe | ❌ C (bocor) | ❌ C (bocor) | ✅ Python |
 | Sarkasme | **✅ Sangat tinggi** | ❌ Zero | ❌ Zero | ❌ Zero |
@@ -210,6 +236,40 @@ conntrack:
   max: 262144                          # Catet semua yang lewat
   buckets: 65536
   fast_track: true                     # Yang "kenal" kasih jalur cepat
+
+users:
+  - username: pelanggan-a               # Rakyat jelata
+    password: rahasia123
+    enabled: true
+    package_name: silver
+    ip_address: 10.0.1.100              # IP khusus (biar gampang dilacak kalo telat bayar)
+    mac_address: "aa:bb:cc:dd:ee:01"
+
+packages:
+  - name: silver                        # Paket silver: 10Mbps (mirip jatah subsidi)
+    description: "10Mbps - cukup buat streaming, gak cukup buat download bajakan"
+    profiles:
+      - name: 10mbps
+        upload_rate: 10000
+        download_rate: 10000
+        priority: 3
+  - name: gold                          # Paket gold: prioritas (kayak proyek prioritas nasional)
+    description: "50Mbps - buat yang mampu nyogok"
+    profiles:
+      - name: 50mbps
+        upload_rate: 50000
+        download_rate: 50000
+        priority: 1
+
+dhcp:
+  pools:
+    - subnet: 10.0.1.0
+      mask: 255.255.255.0
+      gateway: 10.0.1.1
+      start_ip: 10.0.1.100
+      end_ip: 10.0.1.200
+      dns_servers: [8.8.8.8, 8.8.4.4]
+      lease_seconds: 86400
 ```
 
 Jalanin:
