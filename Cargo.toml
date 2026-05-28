@@ -75,3 +75,7 @@ name = "punglios"
 [[bench]]
 name = "traits"
 harness = false
+
+[[bench]]
+name = "phase2"
+harness = false
