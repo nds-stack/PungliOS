@@ -116,7 +116,14 @@ impl ConfigEngine {
         if prefer_yaml {
             if self.yaml_path.exists() {
                 if let Err(e) = self.load_yaml() {
-                    tracing::warn!("failed to load YAML config: {e}, using defaults");
+                    tracing::warn!("failed to load YAML config: {e}");
+                    if self.binary_path.exists() {
+                        if let Err(e) = self.load_binary() {
+                            tracing::warn!("binary fallback also failed: {e}, using defaults");
+                        }
+                    } else {
+                        tracing::warn!("using defaults");
+                    }
                 }
             } else if self.binary_path.exists()
                 && let Err(e) = self.load_binary()

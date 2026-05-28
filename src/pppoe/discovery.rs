@@ -314,7 +314,10 @@ impl<T: PppoeBackend> PppoeServer<T> {
     pub async fn process_one(&mut self, iface: &str) -> Result<Option<PppoeEnvelope>> {
         let envelope_bytes = match self.backend.recv(iface).await {
             Ok(e) => e,
-            Err(_e) => return Ok(None),
+            Err(e) => {
+                tracing::warn!("recv error on {iface}: {e}");
+                return Ok(None);
+            }
         };
 
         // In mock mode, the backend's send method already routes packets.
