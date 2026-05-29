@@ -6,7 +6,7 @@ PungliOS adalah platform manajemen jaringan ISP/WISP berbasis Rust yang terinspi
 
 Bedanya? Kalo pungli bikin rakyat susah, PungliOS bikin **ISP untung besar** dengan infrastruktur open-source yang kenceng, stabil, dan zero toleransi terhadap *latency* — tapi toleransi tinggi terhadap sarkasme.
 
-> **Status:** 🟢 Fase 1 (Core Networking) selesai — interface, firewall, QoS, NAT, routing, conntrack, config, CLI/TUI. 🟢 Fase 2 (PPPoE + Auth + Services) selesai — discovery, PPP, RADIUS, user management, DHCP server, DNS forwarder + adblock. 🟢 Fase 3.1 (REST API) selesai — HTTP API Axum dengan 25 endpoint. 🟢 1.1b (Real Backend) selesai — nlink-based untuk 6 trait, aktif via `--features real`.
+> **Status:** Fase 1-4 "selesai" (kata pemerintah, "selesai" artinya 80% — dan 80% artinya 50% — dan 50% artinya "dana sudah cair, laporan menyusul"). Tapi ini Rust, jadi kalo compile ya jalan. Gak ada "efisiensi anggaran" di kode.
 > **Target:** Linux (x86_64, aarch64). *Buat Windows? Lu kira ini aplikasi pajak?*
 
 ---
@@ -73,26 +73,23 @@ Config engine make YAML untuk manusia (biar bisa dibaca, beda sama APBN) dan bin
 - **UserManager** — CRUD user + package. `assign_package("budi", "silver")` — kasih paket kayak bagi jabatan.
 - **DhcpServer** — `handle_packet()` otomatis route Discover→Offer, Request→Ack. Pool IP: `192.168.1.100` sampai `.200`. Kayak lapak pasar — siapa cepat dia dapet, yang telat ya tunggu expired.
 - **DnsForwarder** — DNS server dengan cache TTL + adblock. `resolve_sync(query)` → response. Domain yang masuk blacklist dapet NXDOMAIN kayak situs diblokir Menkominfo. Wildcard pattern: `*.iklan.com`.
-- **RealBackend (1.1b)** — Implementasi 6 trait pake `nlink` crate, akses kernel langsung via netlink socket. Aktif pake `--features real`. Jalan di Linux doang.
-- **REST API (3.1)** — Axum HTTP server, 50+ endpoint, JSON response. Aktif pake `--features api`. Port 3000 default.
+- **RealBackend (1.1b)** — 6 trait pake `nlink`, akses kernel via netlink socket. Aktif lewat `--features real`. Kalo kernel lu crash, itu bukan bug — itu "efisiensi anggaran." Jalan di Linux doang — soalnya Windows gak bisa diajak "kerja sama" kayak rekanan proyek.
+- **REST API (3.1)** — Axum HTTP server, 50+ endpoint, JSON response. `cargo run --features api`. Port 3000. Kalo gak bisa akses, coba pake "pendekatan" — siapa tahu ada "uang administrasi" yang lolos.
 
 ### Dynamic Routing (4.1)
 
-| Trait / Module | Method | Mirip Kayak |
-|-------|--------|-------------|
-| `DynamicRouting` | BGP: `add/remove/list peer`, `status`; OSPF: `add/remove/list area`, `status`; routing table | Kayak lobby DPR — BGP (negosiasi antar partai), OSPF (rapat internal), hasilnya rute baru buat "lancar" |
+BGP buat ngobrol sama ISP tetangga. OSPF buat koordinasi internal. Kayak lobby DPR: BGP (negosiasi antar fraksi), OSPF (rapat internal buat bagi-bagi jatah). Hasilnya rute baru yang "lancar" — beda sama proyek infrastruktur yang lancarnya cuma di atas kertas.
 
-#### REST API
-| Endpoint | Method | Deskripsi |
-|----------|--------|-----------|
-| `/api/v1/routing/bgp/peers` | GET | Daftar semua peer BGP |
-| `/api/v1/routing/bgp/peers` | POST | Tambah peer BGP baru |
-| `/api/v1/routing/bgp/peers/{ip}` | DELETE | Hapus peer BGP |
-| `/api/v1/routing/bgp/status` | GET | Status BGP (ASN lokal, prefix) |
-| `/api/v1/routing/ospf/areas` | GET | Daftar semua area OSPF |
-| `/api/v1/routing/ospf/areas` | POST | Tambah area OSPF baru |
-| `/api/v1/routing/ospf/areas/{id}` | DELETE | Hapus area OSPF |
-| `/api/v1/routing/table` | GET | Tabel routing dinamis |
+| Endpoint | Method | Buat Apa |
+|----------|--------|----------|
+| `/api/v1/routing/bgp/peers` | GET | Ngintip siapa aja yang "diajak kerja sama" |
+| `/api/v1/routing/bgp/peers` | POST | Nambah koneksi baru (gausah paraf 10 lembar kayak MoU) |
+| `/api/v1/routing/bgp/peers/{ip}` | DELETE | Putus hubungan: lebih gampang dari cerai |
+| `/api/v1/routing/bgp/status` | GET | Cek sehat-sakit — lebih transparan dari hasil RAPAT |
+| `/api/v1/routing/ospf/areas` | GET | Liat area OSPF (mirip wilayah kerja dinas — bedanya ini beneran kerja) |
+| `/api/v1/routing/ospf/areas` | POST | Tambah wilayah: gak perlu paripurna, tinggal POST |
+| `/api/v1/routing/ospf/areas/{id}` | DELETE | Hapus area: lebih cepet dari pemekaran daerah |
+| `/api/v1/routing/table` | GET | Tabel routing: yang lolos, yang ditahan, yang "dalam proses"
 
 #### Web UI
 - **BGP Routing** (`/web/routing/bgp`) — Kelola peer BGP, lihat status
@@ -101,104 +98,83 @@ Config engine make YAML untuk manusia (biar bisa dibaca, beda sama APBN) dan bin
 
 ### WireGuard VPN (4.2)
 
-| Trait / Module | Method | Deskripsi |
-|-------|--------|-------------|
-| `WireguardBackend` | `create/delete/list/get interface`, `add/remove/list peers`, `status` | Manajemen interface dan peer WireGuard |
+WireGuard: VPN "ringan, cepat, modern" — katanya sih gitu. Bedanya sama sensor internet Kominfo: kalo Kominfo blokir situs bikin jengkel, WireGuard buka akses bikin lega. Tapi sama-sama bikin pusing yang ngatur — bedanya ini gak butuh "tim verifikasi" buat nambah peer.
 
-#### REST API
-| Endpoint | Method | Deskripsi |
-|----------|--------|-----------|
-| `/api/v1/wireguard/interfaces` | GET | Daftar interface WireGuard |
-| `/api/v1/wireguard/interfaces` | POST | Tambah interface baru |
-| `/api/v1/wireguard/interfaces/{name}` | DELETE | Hapus interface |
-| `/api/v1/wireguard/interfaces/{name}/peers` | GET | Daftar peer pada interface |
-| `/api/v1/wireguard/interfaces/{name}/peers` | POST | Tambah peer baru |
-| `/api/v1/wireguard/interfaces/{name}/peers/{pubkey}` | DELETE | Hapus peer |
-| `/api/v1/wireguard/status` | GET | Status WireGuard |
+| Endpoint | Method | Buat Apa |
+|----------|--------|----------|
+| `/api/v1/wireguard/interfaces` | GET | Cek ada tunnel apa aja (mirip ngecek berapa proyek fiktif) |
+| `/api/v1/wireguard/interfaces` | POST | Nambah tunnel baru: lebih gampang dari ngurus IMB |
+| `/api/v1/wireguard/interfaces/{name}` | DELETE | Hapus tunnel: eksekusi lebih cepet dari eksekusi KPK |
+| `/api/v1/wireguard/interfaces/{name}/peers` | GET | Siapa aja yang "numpang" |
+| `/api/v1/wireguard/interfaces/{name}/peers` | POST | Kasih akses ke orang baru (gausah paraf 5 menteri) |
+| `/api/v1/wireguard/interfaces/{name}/peers/{pubkey}` | DELETE | Cabut akses: lebih tegas dari teguran lisan |
+| `/api/v1/wireguard/status` | GET | Apakah WireGuard-nya "sehat"? (jawaban: tergantung interpretasi)
 
 ### Billing (3.6)
 
-| Trait / Module | Method | Deskripsi |
-|-------|--------|-------------|
-| `BillingBackend` | `create/list/get plan`, `generate/list/mark invoice paid`, `summary`, `record usage` | Manajemen billing dan invoice |
+Billing. Karena ISP perlu duit — beda sama negara yang punya APBN ribuan triliun tapi masih utang di mana-mana. Invoice di PungliOS gak bisa "dianggarkan ulang" kalo telat bayar, beda sama pejabat yang bisa revisi APBN kapan aja demi proyek "mendadak."
 
-#### REST API
-| Endpoint | Method | Deskripsi |
-|----------|--------|-----------|
-| `/api/v1/billing/plans` | GET | Daftar paket billing |
-| `/api/v1/billing/plans` | POST | Tambah paket baru |
-| `/api/v1/billing/invoices` | GET | Daftar invoice (filter: ?username=xxx) |
-| `/api/v1/billing/invoices` | POST | Generate invoice baru |
-| `/api/v1/billing/invoices/{id}/pay` | POST | Tandai invoice terbayar |
-| `/api/v1/billing/summary` | GET | Ringkasan billing |
+| Endpoint | Method | Buat Apa |
+|----------|--------|----------|
+| `/api/v1/billing/plans` | GET | Liat paket harga — lebih transparan dari rincian APBN |
+| `/api/v1/billing/plans` | POST | Bikin paket baru (gausah paripurna DPR) |
+| `/api/v1/billing/invoices` | GET | Tagihan: mirip ngecek utang negara, bedanya ini pasti dibayar |
+| `/api/v1/billing/invoices` | POST | Nerbitin invoice — mirip nerbitin perda, tapi ini gak bikin rakyat demo |
+| `/api/v1/billing/invoices/{id}/pay` | POST | Bayar: konfirmasinya realtime, beda sama pencairan dana yang bisa berbulan-bulan |
+| `/api/v1/billing/summary` | GET | Total yang harus dibayar — semoga gak bikin kaget kayak laporan KPK
 
 ### PPPoE Failover (4.4)
 
-| Trait / Module | Method | Deskripsi |
-|-------|--------|-------------|
-| `PppFailoverBackend` | `add/remove/list uplinks`, `status`, `trigger failover`, `set priority` | Redundansi koneksi PPPoE antar ISP |
+Redundansi koneksi: kalo ISP A mati, auto pindah ke ISP B. Mirip proyek pemerintah yang selalu punya "duplikasi" di anggaran — bedanya kalo failover bikin koneksi lancar, kalo proyek duplikasi bikin anggaran dobel. Paling cocok buat yang sering kena "pemadaman bergilir" (mirip listrik, tapi ini internet).
 
-#### REST API
-| Endpoint | Method | Deskripsi |
-|----------|--------|-----------|
-| `/api/v1/failover/uplinks` | GET | Daftar uplink |
-| `/api/v1/failover/uplinks` | POST | Tambah uplink baru |
-| `/api/v1/failover/uplinks/{name}` | DELETE | Hapus uplink |
-| `/api/v1/failover/status` | GET | Status failover |
-| `/api/v1/failover/trigger` | POST | Trigger failover manual |
+| Endpoint | Method | Buat Apa |
+|----------|--------|----------|
+| `/api/v1/failover/uplinks` | GET | Liat koneksi internet apa aja yang "diselundupin" |
+| `/api/v1/failover/uplinks` | POST | Nambah jalur cadangan: kayak milih calon, tapi ini gak bakal khianati |
+| `/api/v1/failover/uplinks/{name}` | DELETE | Putusin koneksi: lebih halus dari pemecatan menteri |
+| `/api/v1/failover/status` | GET | Apakah koneksi lagi "sehat"? (definisi sehat: nafs masih ada) |
+| `/api/v1/failover/trigger` | POST | Pindah jalur paksa: kayak mutasi PNS yang gak diinginkan
 
 ### VRRP (4.3)
 
-| Trait / Module | Method | Deskripsi |
-|-------|--------|-------------|
-| `VrrpBackend` | `create/delete/list instances`, `status` | Virtual Router Redundancy Protocol |
+VRRP: kalo server master mati, backup otomatis naik. Mirip mekanisme suksesi pejabat: kalo menteri A lengser, menteri B naik dengan program yang sama — bedanya VRRP beneran jalan (gak cuma "segera ditindaklanjuti"). Failover-nya dalam milidetik, bukan dalam "masa transisi" yang bisa berbulan-bulan.
 
-#### REST API
-| Endpoint | Method | Deskripsi |
-|----------|--------|-----------|
-| `/api/v1/vrrp/instances` | GET | Daftar instance VRRP |
-| `/api/v1/vrrp/instances` | POST | Tambah instance baru |
-| `/api/v1/vrrp/instances/{name}` | DELETE | Hapus instance |
-| `/api/v1/vrrp/status` | GET | Status VRRP |
+| Endpoint | Method | Buat Apa |
+|----------|--------|----------|
+| `/api/v1/vrrp/instances` | GET | Liat siapa aja yang "siap siaga" (mirip pejabat eselon yang siap "tindak lanjut") |
+| `/api/v1/vrrp/instances` | POST | Daftarin instance baru — gak perlu pilkada, tinggal POST |
+| `/api/v1/vrrp/instances/{name}` | DELETE | Berhentiin instance — gak ada masa jabatan 5 tahun |
+| `/api/v1/vrrp/status` | GET | Siapa yang lagi "berkuasa" sekarang (mirip laporan presiden, tapi ini jujur)
 
 ### BPF+EDT QoS (4.5)
 
-| Trait / Module | Method | Deskripsi |
-|-------|--------|-------------|
-| `BpfQosBackend` | `attach/detach/list qdiscs`, `status` | High-performance QoS via BPF/EDT |
+Prioritas bandwidth pake BPF di kernel — eksekusinya di data plane, gak ada "tapi" dan "segera." Kayak prioritas anggaran di APBN: mobil dinas duluan, rakyat belakangan — tapi kalo di PungliOS prioritas ditentuin by classid, bukan by "siapa yang kenal sama pejabat." Cocok buat yang mau throughput >10Gbps tanpa "pajak tambahan."
 
-#### REST API
-| Endpoint | Method | Deskripsi |
-|----------|--------|-----------|
-| `/api/v1/bpf-qos/qdiscs` | GET | Daftar qdisc |
-| `/api/v1/bpf-qos/qdiscs` | POST | Attach qdisc baru |
-| `/api/v1/bpf-qos/qdiscs/{iface}` | DELETE | Detach qdisc |
-| `/api/v1/bpf-qos/status` | GET | Status BPF QoS |
+| Endpoint | Method | Buat Apa |
+|----------|--------|----------|
+| `/api/v1/bpf-qos/qdiscs` | GET | Cek antrian apa aja yang aktif (mirip cek proyek prioritas nasional) |
+| `/api/v1/bpf-qos/qdiscs` | POST | Pasang antrian baru — gak butuh izin menteri |
+| `/api/v1/bpf-qos/qdiscs/{iface}` | DELETE | Bongkar antrian — lebih cepet dari pembubaran lembaga negara |
+| `/api/v1/bpf-qos/status` | GET | Apakah BPF QoS-nya "berfungsi"? (spoiler: iya, beda sama proyek strategis nasional)
 
 ### Plugin System (4.6)
 
-| Module | Method | Deskripsi |
-|-------|--------|-------------|
-| `PluginRegistry` | `register/enable/disable`, `list plugins`, `status` | Framework ekstensi untuk module pihak ketiga |
+Framework ekstensi buat nambah fitur kustom tanpa compile ulang. Kayak proyek "titipan" di APBN — bedanya kalo plugin beneran nambah fungsi, kalo proyek titipan cuma nambah nominal. Mau bikin backend korupsi sendiri? Gampang, tinggal implement Plugin trait. Gak perlu "tim ahli" dari luar negeri yang honornya miliaran.
 
-#### REST API
-| Endpoint | Method | Deskripsi |
-|----------|--------|-----------|
-| `/api/v1/plugins` | GET | Daftar plugin terdaftar |
-| `/api/v1/plugins/status` | GET | Status plugin manager |
+| Endpoint | Method | Buat Apa |
+|----------|--------|----------|
+| `/api/v1/plugins` | GET | Siapa aja yang "numpang" di sistem ini |
+| `/api/v1/plugins/status` | GET | Plugin-nya pada sehat? (kalo error, ya "dievaluasi" — kayak kinerja menteri)
 
 ### Multi-tenancy (4.7)
 
-| Trait / Module | Method | Deskripsi |
-|-------|--------|-------------|
-| `TenancyBackend` | `create/delete/list/get tenant`, `status` | Isolasi resource per penyewa/organisasi |
+Satu server PungliOS ngelayani banyak penyewa (ISP, korporasi, atau oknum-oknum tertentu). Mirip organisasi perangkat daerah: banyak dinas, banyak kepala, banyak ruangan — tapi yang beneran kerja cuma satu atau dua. Bedanya PungliOS isolasi resource secara ketat pake trait-based backend — kalo pemerintah, resource-nya "saling pinjam." — *baca: saling ambil.*
 
-#### REST API
-| Endpoint | Method | Deskripsi |
-|----------|--------|-----------|
-| `/api/v1/tenants` | GET | Daftar tenant |
-| `/api/v1/tenants` | POST | Tambah tenant baru |
-| `/api/v1/tenants/{id}` | DELETE | Hapus tenant |
+| Endpoint | Method | Buat Apa |
+|----------|--------|----------|
+| `/api/v1/tenants` | GET | Siapa aja penyewanya (bikin mirip daftar penerima bansos) |
+| `/api/v1/tenants` | POST | Nambah penyewa baru — gak perlu KTP, cukup JSON |
+| `/api/v1/tenants/{id}` | DELETE | Usir penyewa (lebih halus dari penggusuran paksa)
 
 ### CLI
 
@@ -208,7 +184,9 @@ punglios firewall <zone|rule> <list|get|create|delete|add-rule|remove-rule|flush
 punglios qos <attach|add-class|remove-class|list>
 punglios config <show|apply|commit|rollback|diff>
 punglios shell          # TUI — Dashboard, Interfaces, Firewall, QoS, Config, Logs
-punglios api            # Start REST API server (--features api)
+                        #   Transparannya? Kayak LHKPN — ada, tapi ya gitu.
+punglios api            # Start REST API (--features api). Port 3000.
+                        #   Kalo gak bisa akses, inget: "uang administrasi" dulu.
 ```
 
 ---
@@ -235,18 +213,18 @@ PungliOS nangani error dengan integritas tinggi — beda sama e-KTP yang typo di
 - **User management sudah jalan** — CRUD user, paket/bandwidth profile, IP/MAC binding. Data base user yang **beneran** akurat — beda sama e-KTP.
 - **DNS forwarder sudah jalan** — Cache + adblock + wildcard blocking. Mirip sensor internet: domain yang masuk daftar hitam ditolak, yang lain lolos.
 - **REST API sudah jalan** — Axum HTTP server dengan 25 endpoint. `cargo run --features api`. Port 3000.
-- **REST API + Web UI** masih fase berikutnya. Sabar, ini bukan bansos.
-- **Single-node** — belum ada clustering. Kalo lu mau HA, colokin 2 router terus doa. Masih lebih canggih dari server KPU.
+- **REST API + Web UI sudah jalan** — 50+ endpoint, 12+ halaman dashboard. `cargo run --features web`. Ini bukan bansos, sabar. Tapi realisasinya tetep ada.
+- **Single-node** — belum ada clustering. Kalo lu mau HA, colokin 2 router terus doa. Masih lebih canggih dari server KPU yang hitung suara ulang 3 kali.
 - **Benchmark pake mock** — real benchmark butuh Linux deployment. Ini bukan hasil survei yang bisa dimanipulasi.
 
 ---
 
 ## Multi-Instance
 
-Sekarang tiap instance PungliOS ngurus satu box Linux. Gak ada koordinasi multi-node — mirip kementerian yang jalan sendiri-sendiri. Rencana ke depan:
+Sekarang tiap instance PungliOS ngurus satu box Linux. Gak ada koordinasi multi-node — mirip kementerian yang gak pernah rapat koordinasi, jalan sendiri-sendiri, tapi sama-sama minta anggaran. Rencana ke depan:
 
-- **Phase 3** — REST API (gRPC/tonic) buat manajemen remote
-- **Phase 4** — VRRP high availability + multi-tenancy
+- **VRRP (4.3)** — Kalo satu mati, yang lain lanjut. Ganti menteri, programnya tetap. Bedanya ini beneran failover, bukan "kabinet tunda" yang bisa berbulan-bulan.
+- **Multi-tenancy (4.7)** — Satu server, banyak ISP. Mirip kos-kosan: tiap kamar sekat-sekatan, gak ada yang ganggu tetangga — bedanya ini legal dan gak ada "indekos" yang main petasan tengah malem.
 
 ---
 
