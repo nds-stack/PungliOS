@@ -911,14 +911,8 @@ mod real_backend {
 
         async fn bind(&self, iface: &str) -> Result<()> {
             let (d, s) = Self::open_sockets(iface)?;
-            self.fds
-                .write()
-                .map_err(|e| anyhow::anyhow!("lock: {e}"))?
-                .insert(iface.to_string(), (d, s));
-            self.bound
-                .write()
-                .map_err(|e| anyhow::anyhow!("lock: {e}"))?
-                .push(iface.to_string());
+            self.fds.write().insert(iface.to_string(), (d, s));
+            self.bound.write().push(iface.to_string());
             tracing::info!("bound to {iface}");
             Ok(())
         }
@@ -933,10 +927,7 @@ mod real_backend {
                     libc::close(s);
                 }
             }
-            self.bound
-                .write()
-                .map_err(|e| anyhow::anyhow!("lock: {e}"))?
-                .retain(|i| i != iface);
+            self.bound.write().retain(|i| i != iface);
             tracing::info!("unbound from {iface}");
             Ok(())
         }
