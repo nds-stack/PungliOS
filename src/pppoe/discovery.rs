@@ -635,27 +635,21 @@ mod tests {
 #[cfg(feature = "real")]
 #[allow(unsafe_code)]
 mod real_backend {
-    use super::*;
-    use anyhow::{Result, bail};
-
-    pub struct RealPppoeBackend {
+    pub(super) struct RealPppoeBackend {
         fds: std::collections::HashMap<String, (i32, i32)>,
         bound: Vec<String>,
     }
 
     impl RealPppoeBackend {
-        pub fn new() -> Self {
+        pub(super) fn new() -> Self {
             Self {
                 fds: std::collections::HashMap::new(),
                 bound: Vec::new(),
             }
         }
 
-        fn open_sockets(_iface: &str) -> Result<(i32, i32)> {
-            // TODO: implement AF_PACKET raw socket
-            // Requires: libc::socket(AF_PACKET, SOCK_RAW, ETH_PPPOE_DISCOVERY/SESSION)
-            //          + if_nametoindex + bind
-            bail!("raw socket PPPoE not yet implemented")
+        fn open_sockets(_iface: &str) -> anyhow::Result<(i32, i32)> {
+            anyhow::bail!("raw socket PPPoE not yet implemented")
         }
     }
 }
