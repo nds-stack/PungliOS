@@ -487,6 +487,9 @@ pub(crate) async fn create_package(
         profiles,
         session_timeout: body["session_timeout"].as_u64().map(|v| v as u32),
     };
+    if let Err(e) = pkg.validate() {
+        return err(e);
+    }
     match s.user_mgr.create_package(pkg).await {
         Ok(_) => ok(),
         Err(e) => err(e.to_string()),

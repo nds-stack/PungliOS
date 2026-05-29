@@ -47,7 +47,7 @@ metrics-exporter-prometheus = "0.16"
 
 # Utilities
 futures = "0.3"
-argon2 = "0.5"
+argon2 = { version = "0.5", features = ["std"] }
 uuid = { version = "1", features = ["v4"] }
 
 # Real backend: kernel interface (Linux only, optional)

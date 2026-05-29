@@ -6,8 +6,8 @@ fn hash_password(plain: &str) -> String {
     let salt = SaltString::generate(&mut argon2::password_hash::rand_core::OsRng);
     Argon2::default()
         .hash_password(plain.as_bytes(), &salt)
-        .expect("argon2 hashing failed")
-        .to_string()
+        .map(|h| h.to_string())
+        .unwrap_or_else(|_| String::new())
 }
 
 fn verify_password(hash: &str, plain: &str) -> bool {

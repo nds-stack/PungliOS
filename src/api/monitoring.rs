@@ -7,17 +7,13 @@ use axum::{
 };
 use futures::stream::Stream;
 use std::convert::Infallible;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::broadcast;
 use tokio_stream::StreamExt;
 use tokio_stream::wrappers::BroadcastStream;
 
-struct CpuSnapshot {
-    prev_total: u64,
-    prev_idle: u64,
-}
-
-static CPU_STATE: Mutex<Option<CpuSnapshot>> = Mutex::new(None);
+static CPU_PREV_TOTAL: AtomicU64 = AtomicU64::new(0);
+static CPU_PREV_IDLE: AtomicU64 = AtomicU64::new(0);
 
 pub(crate) async fn collect_monitoring_data(s: &AppState) -> serde_json::Value {
     let (cpu, mem_total, mem_used, uptime_secs) = get_system_info();
@@ -126,14 +122,13 @@ pub(crate) fn get_system_info() -> (f64, u64, u64, u64) {
         mem_used = mem_total.saturating_sub(mem_avail);
 
         if let Some((total, idle)) = read_proc_stat() {
-            let mut state = CPU_STATE.lock().unwrap();
-            if let Some(prev) = state.as_ref() {
-                cpu = compute_cpu_percent(total, idle, prev.prev_total, prev.prev_idle);
+            let prev_total = CPU_PREV_TOTAL.load(Ordering::Relaxed);
+            let prev_idle = CPU_PREV_IDLE.load(Ordering::Relaxed);
+            if prev_total > 0 {
+                cpu = compute_cpu_percent(total, idle, prev_total, prev_idle);
             }
-            *state = Some(CpuSnapshot {
-                prev_total: total,
-                prev_idle: idle,
-            });
+            CPU_PREV_TOTAL.store(total, Ordering::Relaxed);
+            CPU_PREV_IDLE.store(idle, Ordering::Relaxed);
         }
     }
 
