@@ -1,9 +1,9 @@
 #![cfg(feature = "api")]
 
 use crate::api::{AppState, err, json_bool, json_str_array, json_u64, ok};
-use crate::routing;
 use crate::traits::NetlinkNat;
 use crate::wireguard;
+use crate::{billing, routing};
 use axum::{
     Json,
     extract::{Path, State},
@@ -341,6 +341,24 @@ pub(crate) async fn set_conntrack_max(
     let mut ct = s.ct_mgr.lock().await;
     match ct.set_max(max).await {
         Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn get_top_talkers(State(s): State<AppState>) -> Json<serde_json::Value> {
+    let ct = s.ct_mgr.lock().await;
+    match ct.top_talkers(20).await {
+        Ok(talkers) => Json(serde_json::json!(talkers)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn get_protocol_distribution(
+    State(s): State<AppState>,
+) -> Json<serde_json::Value> {
+    let ct = s.ct_mgr.lock().await;
+    match ct.protocol_distribution().await {
+        Ok(dist) => Json(serde_json::json!(dist)),
         Err(e) => err(e.to_string()),
     }
 }
@@ -722,6 +740,87 @@ pub(crate) async fn remove_wg_peer(
 pub(crate) async fn get_wg_status(State(s): State<AppState>) -> Json<serde_json::Value> {
     match s.wg_mgr.get_status().await {
         Ok(status) => Json(serde_json::json!(status)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+// ─── Billing ─────────────────────────────────────────
+
+pub(crate) async fn list_billing_plans(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.billing_mgr.list_plans().await {
+        Ok(plans) => Json(serde_json::json!(plans)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn create_billing_plan(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let plan = billing::BillingPlan {
+        name: body["name"].as_str().unwrap_or("").to_string(),
+        price_monthly: json_u64(&body["price_monthly"]).unwrap_or(0),
+        price_setup: json_u64(&body["price_setup"]).unwrap_or(0),
+        currency: body["currency"].as_str().unwrap_or("IDR").to_string(),
+        grace_days: json_u64(&body["grace_days"]).unwrap_or(7) as u32,
+        enabled: json_bool(&body["enabled"]).unwrap_or(true),
+    };
+    match s.billing_mgr.create_plan(&plan).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn list_invoices(
+    State(s): State<AppState>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Json<serde_json::Value> {
+    let username = params.get("username").map(|s| s.as_str()).unwrap_or("");
+    match s.billing_mgr.list_invoices(username).await {
+        Ok(invoices) => Json(serde_json::json!(invoices)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn generate_invoice(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let invoice = billing::Invoice {
+        id: body["id"].as_str().unwrap_or("INV-000").to_string(),
+        username: body["username"].as_str().unwrap_or("").to_string(),
+        amount: json_u64(&body["amount"]).unwrap_or(0),
+        currency: body["currency"].as_str().unwrap_or("IDR").to_string(),
+        issued_at: now,
+        due_at: now + json_u64(&body["grace_days"]).unwrap_or(7) * 86400,
+        paid_at: None,
+        status: billing::InvoiceStatus::Pending,
+        items: vec![],
+    };
+    match s.billing_mgr.generate_invoice(&invoice).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn mark_invoice_paid(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.billing_mgr.mark_invoice_paid(&id).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn get_billing_summary(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.billing_mgr.get_billing_summary().await {
+        Ok(summary) => Json(serde_json::json!(summary)),
         Err(e) => err(e.to_string()),
     }
 }

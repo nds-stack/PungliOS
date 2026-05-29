@@ -10,6 +10,7 @@ extern crate tempfile;
 extern crate tokio_test;
 
 pub mod api;
+pub mod billing;
 pub mod cli;
 pub mod config;
 pub mod conntrack;

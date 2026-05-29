@@ -4,7 +4,7 @@ pub(crate) mod handlers;
 pub(crate) mod monitoring;
 
 use crate::traits::MockBackend;
-use crate::{conntrack, firewall, net, qos, routing, user, wireguard};
+use crate::{billing, conntrack, firewall, net, qos, routing, user, wireguard};
 use axum::{
     Json, Router,
     routing::{delete, get, post, put},
@@ -27,6 +27,7 @@ pub struct AppState {
     pub user_mgr: Arc<user::UserManager<user::MockUserBackend>>,
     pub routing_mgr: Arc<routing::DynamicRoutingManager<routing::MockDynamicRouting>>,
     pub wg_mgr: Arc<wireguard::WireGuardManager<wireguard::MockWireguardBackend>>,
+    pub billing_mgr: Arc<billing::BillingManager<billing::MockBillingBackend>>,
     pub monitoring_tx: broadcast::Sender<String>,
 }
 
@@ -57,6 +58,9 @@ impl AppState {
             )),
             wg_mgr: Arc::new(wireguard::WireGuardManager::new(
                 wireguard::MockWireguardBackend::new(),
+            )),
+            billing_mgr: Arc::new(billing::BillingManager::new(
+                billing::MockBillingBackend::new(),
             )),
             monitoring_tx,
         }
@@ -122,6 +126,14 @@ pub fn router(state: AppState) -> Router {
             get(handlers::get_conntrack_stats),
         )
         .route("/api/v1/conntrack/max", put(handlers::set_conntrack_max))
+        .route(
+            "/api/v1/conntrack/top-talkers",
+            get(handlers::get_top_talkers),
+        )
+        .route(
+            "/api/v1/conntrack/protocols",
+            get(handlers::get_protocol_distribution),
+        )
         .route("/api/v1/routing/bgp/peers", get(handlers::list_bgp_peers))
         .route("/api/v1/routing/bgp/peers", post(handlers::add_bgp_peer))
         .route(
@@ -165,6 +177,18 @@ pub fn router(state: AppState) -> Router {
             delete(handlers::remove_wg_peer),
         )
         .route("/api/v1/wireguard/status", get(handlers::get_wg_status))
+        .route("/api/v1/billing/plans", get(handlers::list_billing_plans))
+        .route("/api/v1/billing/plans", post(handlers::create_billing_plan))
+        .route("/api/v1/billing/invoices", get(handlers::list_invoices))
+        .route("/api/v1/billing/invoices", post(handlers::generate_invoice))
+        .route(
+            "/api/v1/billing/invoices/{id}/pay",
+            post(handlers::mark_invoice_paid),
+        )
+        .route(
+            "/api/v1/billing/summary",
+            get(handlers::get_billing_summary),
+        )
         .route("/api/v1/users", get(handlers::list_users))
         .route("/api/v1/users", post(handlers::create_user))
         .route("/api/v1/users/{username}", put(handlers::update_user))

@@ -53,6 +53,7 @@ pub fn router(state: AppState) -> Router {
         .route("/web/routing/ospf", get(ospf_page))
         .route("/web/routing/table", get(routing_table_page))
         .route("/web/wireguard", get(wireguard_page))
+        .route("/web/billing", get(billing_page))
         .with_state(ws)
 }
 
@@ -410,4 +411,15 @@ async fn wireguard_page(State(ws): State<WebState>) -> Html<String> {
     ctx.insert("interfaces", &iface_items);
     ctx.insert("wg_status", &status);
     render(&ws.tmpl, "wireguard.html", &ctx)
+}
+
+async fn billing_page(State(ws): State<WebState>) -> Html<String> {
+    let mut ctx = Context::new();
+    let plans = ws.app.billing_mgr.list_plans().await.unwrap_or_default();
+    let summary = ws.app.billing_mgr.get_billing_summary().await.ok();
+    ctx.insert("page", "billing");
+    ctx.insert("page_title", "Billing");
+    ctx.insert("plans", &plans);
+    ctx.insert("billing_summary", &summary);
+    render(&ws.tmpl, "billing.html", &ctx)
 }

@@ -3,7 +3,9 @@ pub mod tuning;
 
 use crate::traits::{ConntrackEntry, NetlinkConntrack};
 use anyhow::{Result, bail};
+use serde::Serialize;
 use std::fmt;
+use std::net::IpAddr;
 
 pub const MAX_CONNTRACK_DEFAULT: u32 = 262_144;
 pub const BUCKETS_DEFAULT: u32 = 65_536;
@@ -84,6 +86,52 @@ impl<T: NetlinkConntrack> ConntrackManager<T> {
         }
         count as f64 / self.max as f64
     }
+
+    pub async fn top_talkers(&self, limit: usize) -> Result<Vec<TalkerEntry>> {
+        let entries = self.backend.list().await?;
+        let mut ip_bytes: std::collections::HashMap<IpAddr, u64> = std::collections::HashMap::new();
+        for e in &entries {
+            *ip_bytes.entry(e.src).or_default() += e.bytes;
+            *ip_bytes.entry(e.dst).or_default() += e.bytes;
+        }
+        let mut talkers: Vec<TalkerEntry> = ip_bytes
+            .into_iter()
+            .map(|(ip, bytes)| TalkerEntry { ip, bytes })
+            .collect();
+        use std::cmp::Reverse;
+        talkers.sort_by_key(|t| Reverse(t.bytes));
+        talkers.truncate(limit);
+        Ok(talkers)
+    }
+
+    pub async fn protocol_distribution(&self) -> Result<Vec<ProtocolCount>> {
+        let entries = self.backend.list().await?;
+        let mut counts: std::collections::HashMap<u8, usize> = std::collections::HashMap::new();
+        for e in &entries {
+            *counts.entry(e.protocol).or_default() += 1;
+        }
+        let mut result: Vec<ProtocolCount> = counts
+            .into_iter()
+            .map(|(proto, count)| ProtocolCount { proto, count })
+            .collect();
+        use std::cmp::Reverse;
+        result.sort_by_key(|p| Reverse(p.count));
+        Ok(result)
+    }
+}
+
+/// Network address with total bytes transferred.
+#[derive(Debug, Clone, Serialize)]
+pub struct TalkerEntry {
+    pub ip: IpAddr,
+    pub bytes: u64,
+}
+
+/// Protocol number and its connection count.
+#[derive(Debug, Clone, Serialize)]
+pub struct ProtocolCount {
+    pub proto: u8,
+    pub count: usize,
 }
 
 #[cfg(test)]
