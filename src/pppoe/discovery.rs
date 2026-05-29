@@ -12,6 +12,24 @@ pub struct PppoeEnvelope {
     pub packet: PppoePacket,
 }
 
+impl PppoeEnvelope {
+    /// Parse an Ethernet frame (14-byte header + PPPoE payload).
+    pub fn parse_eth_frame(data: &[u8]) -> Result<Self> {
+        if data.len() < 14 {
+            bail!("ethernet frame too short: {} bytes", data.len());
+        }
+        let dst_mac: [u8; 6] = data[0..6].try_into().unwrap();
+        let src_mac: [u8; 6] = data[6..12].try_into().unwrap();
+        let _ethertype = u16::from_be_bytes([data[12], data[13]]);
+        let packet = PppoePacket::decode(&data[14..])?;
+        Ok(Self {
+            src_mac,
+            dst_mac,
+            packet,
+        })
+    }
+}
+
 #[async_trait]
 pub trait PppoeBackend: Send + Sync {
     async fn send(&self, iface: &str, envelope: &PppoeEnvelope) -> Result<()>;
@@ -830,9 +848,20 @@ mod real_backend {
             } else {
                 *sf
             };
-            let encoded = envelope.encode();
+            // Manually encode PPPoE frame: version(4) + type(4) | code | session_id | length | tags
+            let total_len = envelope.packet.encoded_len() as u16;
+            let mut pkt_bytes = Vec::with_capacity(6 + total_len as usize);
+            pkt_bytes.push(0x11); // Version=1, Type=1
+            pkt_bytes.push(envelope.packet.code);
+            pkt_bytes.extend_from_slice(&envelope.packet.session_id.to_be_bytes());
+            pkt_bytes.extend_from_slice(&total_len.to_be_bytes());
+            for tag in &envelope.packet.tags {
+                pkt_bytes.extend_from_slice(&tag.tag_type.to_be_bytes());
+                pkt_bytes.extend_from_slice(&(tag.value.len() as u16).to_be_bytes());
+                pkt_bytes.extend_from_slice(&tag.value);
+            }
             let frame =
-                Self::build_eth_frame(&envelope.dst_mac, &envelope.src_mac, ethertype, &encoded);
+                Self::build_eth_frame(&envelope.dst_mac, &envelope.src_mac, ethertype, &pkt_bytes);
             let r = unsafe {
                 libc::sendto(
                     fd,
@@ -861,7 +890,7 @@ mod real_backend {
             })
             .await
             .map_err(|e| anyhow::anyhow!("spawn: {e}"))??;
-            PppoeEnvelope::decode(&raw)
+            PppoeEnvelope::parse_eth_frame(&raw)
         }
 
         async fn recv_timeout(&self, iface: &str, timeout_ms: u64) -> Result<PppoeEnvelope> {
@@ -876,7 +905,7 @@ mod real_backend {
             })
             .await
             .map_err(|e| anyhow::anyhow!("spawn: {e}"))??;
-            PppoeEnvelope::decode(&raw)
+            PppoeEnvelope::parse_eth_frame(&raw)
         }
 
         async fn bind(&self, iface: &str) -> Result<()> {
