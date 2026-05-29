@@ -1,6 +1,6 @@
 # TODO.md — PungliOS Roadmap & Milestones
 
-> Status: 🟢 Phase 1 Complete | 🟢 Phase 2 Complete | 🟢 Phase 3 Complete | 🟡 Phase 4.1-4.2 Done (4.3-4.7 TODO)
+> Status: 🟢 Phase 1-4 Complete | 🔵 Future backlog
 
 ---
 
@@ -81,20 +81,20 @@
 
 ---
 
-## Phase 4: Advanced Features
+## Phase 4: Advanced Features 🟢 COMPLETE
 
 **Target:** Enterprise-grade
 **Deadline:** TBD
 
 | # | Task | Komponen | Status | Priority |
 |---|------|----------|--------|----------|
-| 4.1 | Dynamic routing (BGP/OSPF via FRR atau Rust-native) | Routing | 🔴 TODO | P1 |
-| 4.2 | WireGuard manager | VPN | 🔴 TODO | P1 |
-| 4.3 | VRRP (high availability) | HA | 🔴 TODO | P2 |
-| 4.4 | Redundant PPPoE failover | HA | 🔴 TODO | P2 |
-| 4.5 | BPF+EDT QoS engine (high-performance >10Gbps) | QoS | 🔴 TODO | P2 |
-| 4.6 | Plugin system (extensibility framework) | Plugins | 🔴 TODO | P3 |
-| 4.7 | Multi-tenancy | Platform | 🔴 TODO | P3 |
+| 4.1 | Dynamic routing (BGP/OSPF via FRR atau Rust-native) | Routing | 🟢 DONE | P1 |
+| 4.2 | WireGuard manager | VPN | 🟢 DONE | P1 |
+| 4.3 | VRRP (high availability) | HA | 🟢 DONE | P2 |
+| 4.4 | Redundant PPPoE failover | HA | 🟢 DONE | P2 |
+| 4.5 | BPF+EDT QoS engine (high-performance >10Gbps) | QoS | 🟢 DONE | P2 |
+| 4.6 | Plugin system (extensibility framework) | Plugins | 🟢 DONE | P3 |
+| 4.7 | Multi-tenancy | Platform | 🟢 DONE | P3 |
 
 **Success Metrics:**
 - [ ] 50K+ concurrent users
