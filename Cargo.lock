@@ -1782,6 +1782,7 @@ dependencies = [
  "clap",
  "criterion",
  "futures",
+ "libc",
  "md-5",
  "metrics",
  "metrics-exporter-prometheus",

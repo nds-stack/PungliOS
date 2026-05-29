@@ -285,7 +285,11 @@ mod tests {
                 ..DnsPacket::new_query(1, true).header
             },
             questions: vec![],
-            answers: vec![DnsRecord::new_a("old.com.", std::net::Ipv4Addr::new(10, 0, 0, 1), 0)],
+            answers: vec![DnsRecord::new_a(
+                "old.com.",
+                std::net::Ipv4Addr::new(10, 0, 0, 1),
+                0,
+            )],
             authorities: vec![],
             additionals: vec![],
         };
