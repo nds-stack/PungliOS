@@ -1,5 +1,7 @@
 # PungliOS — Sistem Operasi Pungutan Liar untuk Jaringan ISP/WISP
 
+![PungliOS Banner](images/punglios-banner.webp)
+
 **"Kalo negara bisa pungli, kenapa router enggak?"**
 
 PungliOS adalah platform manajemen jaringan ISP/WISP berbasis Rust yang terinspirasi dari budaya birokrasi Indonesia. Sama seperti pungutan liar yang efisien, transparan (kagak), dan selalu tepat sasaran (ke kantong sendiri) — PungliOS mengelola bandwidth, routing, dan QoS dengan ketegasan seorang oknum yang minta "uang rokok".
