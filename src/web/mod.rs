@@ -8,9 +8,17 @@ use tera::{Context, Tera};
 
 fn setup_tera() -> Tera {
     let template_path = if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            let path = dir.join("templates").join("**/*.html");
-            path.to_string_lossy().to_string()
+        let dir = exe.parent().unwrap_or(std::path::Path::new("."));
+        let tmpl_dir = dir.join("templates");
+        if tmpl_dir.is_dir() {
+            tmpl_dir.join("**/*.html").to_string_lossy().to_string()
+        } else if let Some(grandparent) = dir.parent() {
+            let fallback = grandparent.join("templates");
+            if fallback.is_dir() {
+                fallback.join("**/*.html").to_string_lossy().to_string()
+            } else {
+                "templates/**/*.html".to_string()
+            }
         } else {
             "templates/**/*.html".to_string()
         }
