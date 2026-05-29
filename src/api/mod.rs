@@ -134,7 +134,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/qos/classes", get(handlers::list_classes))
         .route("/api/v1/qos/classes", post(handlers::add_class))
         .route(
-            "/api/v1/qos/classes/{classid}",
+            "/api/v1/qos/classes/{iface}/{classid}",
             delete(handlers::delete_class),
         )
         .route(

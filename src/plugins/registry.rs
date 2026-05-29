@@ -33,30 +33,20 @@ impl PluginRegistry {
         }
     }
 
+    #[allow(clippy::await_holding_lock)]
     pub async fn register(&self, plugin: Box<dyn Plugin>) -> Result<()> {
         let name = plugin.name().to_string();
-        {
-            let plugins = self.plugins.read().expect("lock poisoned");
-            if plugins.contains_key(&name) {
-                bail!("plugin '{name}' already registered");
-            }
+        let mut plugins = self.plugins.write().expect("lock poisoned");
+        if plugins.contains_key(&name) {
+            bail!("plugin '{name}' already registered");
         }
         plugin.on_load().await?;
-        let mut plugins = self.plugins.write().expect("lock poisoned");
         plugins.insert(name, (plugin, PluginState::Loaded));
         Ok(())
     }
 
     #[allow(clippy::await_holding_lock)]
     pub async fn enable(&self, name: &str) -> Result<()> {
-        if !self
-            .plugins
-            .read()
-            .expect("lock poisoned")
-            .contains_key(name)
-        {
-            bail!("plugin '{name}' not found");
-        }
         let mut plugins = self.plugins.write().expect("lock poisoned");
         let (plugin, state) = plugins
             .get_mut(name)

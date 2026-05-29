@@ -408,9 +408,9 @@ pub(crate) async fn add_class(
 
 pub(crate) async fn delete_class(
     State(s): State<AppState>,
-    Path(classid): Path<u32>,
+    Path((iface, classid)): Path<(String, u32)>,
 ) -> Json<serde_json::Value> {
-    match s.qos_mgr.delete_class("eth0", classid).await {
+    match s.qos_mgr.delete_class(&iface, classid).await {
         Ok(_) => ok(),
         Err(e) => err(e.to_string()),
     }

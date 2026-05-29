@@ -74,7 +74,7 @@ Config engine make YAML untuk manusia (biar bisa dibaca, beda sama APBN) dan bin
 - **DhcpServer** — `handle_packet()` otomatis route Discover→Offer, Request→Ack. Pool IP: `192.168.1.100` sampai `.200`. Kayak lapak pasar — siapa cepat dia dapet, yang telat ya tunggu expired.
 - **DnsForwarder** — DNS server dengan cache TTL + adblock. `resolve_sync(query)` → response. Domain yang masuk blacklist dapet NXDOMAIN kayak situs diblokir Menkominfo. Wildcard pattern: `*.iklan.com`.
 - **RealBackend (1.1b)** — Implementasi 6 trait pake `nlink` crate, akses kernel langsung via netlink socket. Aktif pake `--features real`. Jalan di Linux doang.
-- **REST API (3.1)** — Axum HTTP server, 25+ endpoint, JSON response. Aktif pake `--features api`. Port 3000 default.
+- **REST API (3.1)** — Axum HTTP server, 50+ endpoint, JSON response. Aktif pake `--features api`. Port 3000 default.
 
 ### Dynamic Routing (4.1)
 
@@ -98,6 +98,107 @@ Config engine make YAML untuk manusia (biar bisa dibaca, beda sama APBN) dan bin
 - **BGP Routing** (`/web/routing/bgp`) — Kelola peer BGP, lihat status
 - **OSPF Routing** (`/web/routing/ospf`) — Kelola area OSPF
 - **Route Table** (`/web/routing/table`) — Lihat tabel routing dinamis
+
+### WireGuard VPN (4.2)
+
+| Trait / Module | Method | Deskripsi |
+|-------|--------|-------------|
+| `WireguardBackend` | `create/delete/list/get interface`, `add/remove/list peers`, `status` | Manajemen interface dan peer WireGuard |
+
+#### REST API
+| Endpoint | Method | Deskripsi |
+|----------|--------|-----------|
+| `/api/v1/wireguard/interfaces` | GET | Daftar interface WireGuard |
+| `/api/v1/wireguard/interfaces` | POST | Tambah interface baru |
+| `/api/v1/wireguard/interfaces/{name}` | DELETE | Hapus interface |
+| `/api/v1/wireguard/interfaces/{name}/peers` | GET | Daftar peer pada interface |
+| `/api/v1/wireguard/interfaces/{name}/peers` | POST | Tambah peer baru |
+| `/api/v1/wireguard/interfaces/{name}/peers/{pubkey}` | DELETE | Hapus peer |
+| `/api/v1/wireguard/status` | GET | Status WireGuard |
+
+### Billing (3.6)
+
+| Trait / Module | Method | Deskripsi |
+|-------|--------|-------------|
+| `BillingBackend` | `create/list/get plan`, `generate/list/mark invoice paid`, `summary`, `record usage` | Manajemen billing dan invoice |
+
+#### REST API
+| Endpoint | Method | Deskripsi |
+|----------|--------|-----------|
+| `/api/v1/billing/plans` | GET | Daftar paket billing |
+| `/api/v1/billing/plans` | POST | Tambah paket baru |
+| `/api/v1/billing/invoices` | GET | Daftar invoice (filter: ?username=xxx) |
+| `/api/v1/billing/invoices` | POST | Generate invoice baru |
+| `/api/v1/billing/invoices/{id}/pay` | POST | Tandai invoice terbayar |
+| `/api/v1/billing/summary` | GET | Ringkasan billing |
+
+### PPPoE Failover (4.4)
+
+| Trait / Module | Method | Deskripsi |
+|-------|--------|-------------|
+| `PppFailoverBackend` | `add/remove/list uplinks`, `status`, `trigger failover`, `set priority` | Redundansi koneksi PPPoE antar ISP |
+
+#### REST API
+| Endpoint | Method | Deskripsi |
+|----------|--------|-----------|
+| `/api/v1/failover/uplinks` | GET | Daftar uplink |
+| `/api/v1/failover/uplinks` | POST | Tambah uplink baru |
+| `/api/v1/failover/uplinks/{name}` | DELETE | Hapus uplink |
+| `/api/v1/failover/status` | GET | Status failover |
+| `/api/v1/failover/trigger` | POST | Trigger failover manual |
+
+### VRRP (4.3)
+
+| Trait / Module | Method | Deskripsi |
+|-------|--------|-------------|
+| `VrrpBackend` | `create/delete/list instances`, `status` | Virtual Router Redundancy Protocol |
+
+#### REST API
+| Endpoint | Method | Deskripsi |
+|----------|--------|-----------|
+| `/api/v1/vrrp/instances` | GET | Daftar instance VRRP |
+| `/api/v1/vrrp/instances` | POST | Tambah instance baru |
+| `/api/v1/vrrp/instances/{name}` | DELETE | Hapus instance |
+| `/api/v1/vrrp/status` | GET | Status VRRP |
+
+### BPF+EDT QoS (4.5)
+
+| Trait / Module | Method | Deskripsi |
+|-------|--------|-------------|
+| `BpfQosBackend` | `attach/detach/list qdiscs`, `status` | High-performance QoS via BPF/EDT |
+
+#### REST API
+| Endpoint | Method | Deskripsi |
+|----------|--------|-----------|
+| `/api/v1/bpf-qos/qdiscs` | GET | Daftar qdisc |
+| `/api/v1/bpf-qos/qdiscs` | POST | Attach qdisc baru |
+| `/api/v1/bpf-qos/qdiscs/{iface}` | DELETE | Detach qdisc |
+| `/api/v1/bpf-qos/status` | GET | Status BPF QoS |
+
+### Plugin System (4.6)
+
+| Module | Method | Deskripsi |
+|-------|--------|-------------|
+| `PluginRegistry` | `register/enable/disable`, `list plugins`, `status` | Framework ekstensi untuk module pihak ketiga |
+
+#### REST API
+| Endpoint | Method | Deskripsi |
+|----------|--------|-----------|
+| `/api/v1/plugins` | GET | Daftar plugin terdaftar |
+| `/api/v1/plugins/status` | GET | Status plugin manager |
+
+### Multi-tenancy (4.7)
+
+| Trait / Module | Method | Deskripsi |
+|-------|--------|-------------|
+| `TenancyBackend` | `create/delete/list/get tenant`, `status` | Isolasi resource per penyewa/organisasi |
+
+#### REST API
+| Endpoint | Method | Deskripsi |
+|----------|--------|-----------|
+| `/api/v1/tenants` | GET | Daftar tenant |
+| `/api/v1/tenants` | POST | Tambah tenant baru |
+| `/api/v1/tenants/{id}` | DELETE | Hapus tenant |
 
 ### CLI
 

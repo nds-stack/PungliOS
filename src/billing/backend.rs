@@ -98,19 +98,20 @@ impl BillingBackend for MockBillingBackend {
         let mut overdue = 0;
         let mut paid_month = 0u64;
         for inv in invoices.iter() {
-            total += inv.amount;
             match inv.status {
-                InvoiceStatus::Pending if inv.due_at < now => {
+                InvoiceStatus::Pending | InvoiceStatus::Overdue => {
+                    total += inv.amount;
                     pending += 1;
-                    overdue += 1;
+                    if inv.due_at < now {
+                        overdue += 1;
+                    }
                 }
-                InvoiceStatus::Pending => {
-                    pending += 1;
+                InvoiceStatus::Paid => {
+                    if inv.issued_at > month_ago {
+                        paid_month += inv.amount;
+                    }
                 }
-                InvoiceStatus::Paid if inv.issued_at > month_ago => {
-                    paid_month += inv.amount;
-                }
-                _ => {}
+                InvoiceStatus::Cancelled => {}
             }
         }
         Ok(BillingSummary {
