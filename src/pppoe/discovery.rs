@@ -626,3 +626,58 @@ mod tests {
         assert_eq!(server.session_count(), 0);
     }
 }
+
+// ─── Real Backend (Linux raw socket) ──────────────────
+
+#[cfg(feature = "real")]
+pub struct RealPppoeBackend {
+    sockets: Arc<RwLock<HashMap<String, std::net::UdpSocket>>>,
+    bound: Arc<RwLock<Vec<String>>>,
+}
+
+#[cfg(feature = "real")]
+impl RealPppoeBackend {
+    pub fn new() -> Self {
+        Self {
+            sockets: Arc::new(RwLock::new(HashMap::new())),
+            bound: Arc::new(RwLock::new(Vec::new())),
+        }
+    }
+}
+
+#[cfg(feature = "real")]
+#[async_trait]
+impl PppoeBackend for RealPppoeBackend {
+    async fn send(&self, _iface: &str, _envelope: &PppoeEnvelope) -> Result<()> {
+        // TODO: Send raw PPPoE frame via AF_PACKET socket
+        // Requires: socket(AF_PACKET, SOCK_RAW, htons(ETH_P_PPPOE_SESSION))
+        // and constructing raw ethernet frame with PPPoE payload
+        bail!("Real PPPoE send not yet implemented — requires raw socket on Linux")
+    }
+
+    async fn recv(&self, _iface: &str) -> Result<PppoeEnvelope> {
+        bail!("Real PPPoE recv not yet implemented — requires raw socket on Linux")
+    }
+
+    async fn recv_timeout(&self, _iface: &str, _timeout_ms: u64) -> Result<PppoeEnvelope> {
+        bail!("Real PPPoE recv_timeout not yet implemented — requires raw socket on Linux")
+    }
+
+    async fn bind(&self, iface: &str) -> Result<()> {
+        self.bound
+            .write()
+            .expect("lock poisoned")
+            .push(iface.to_string());
+        tracing::info!("bound to interface {iface}");
+        Ok(())
+    }
+
+    async fn unbind(&self, iface: &str) -> Result<()> {
+        self.bound
+            .write()
+            .expect("lock poisoned")
+            .retain(|i| i != iface);
+        tracing::info!("unbound from interface {iface}");
+        Ok(())
+    }
+}
