@@ -85,8 +85,6 @@ impl NetlinkIfaces for RealBackend {
     }
 
     async fn create(&self, config: &InterfaceConfig) -> Result<Interface> {
-        use nlink::netlink::link::LinkConfig;
-
         match config.kind {
             Some(InterfaceKind::Bridge) => {
                 self.rt_conn
@@ -316,7 +314,7 @@ impl NetlinkConntrack for RealBackend {
                 .and_then(|s| s.parse::<u16>().ok())
                 .unwrap_or(0);
             entries.push(ConntrackEntry {
-                protocol: match parts.get(2).map(|s| s.as_str()).unwrap_or("0") {
+                protocol: match parts.get(2).map(|s| s.as_ref()).unwrap_or("0") {
                     "tcp" => 6,
                     "udp" => 17,
                     _ => 0,
