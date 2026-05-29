@@ -451,35 +451,142 @@ impl NetlinkNat for RealBackend {
         for ri in all {
             let kind = match ri.chain.as_str() {
                 "postrouting" => {
-                    // Use comment to distinguish masquerade from snat
                     if ri.comment.as_deref() == Some("punglios:masq") {
                         NatKind::Masquerade
                     } else {
-                        // Default to Snat for rules created externally
                         NatKind::Snat
                     }
                 }
                 "prerouting" => NatKind::Dnat,
                 _ => continue,
             };
+
+            // Parse expression_bytes for additional NAT rule fields
+            let (to_addr, to_port, iface) = parse_nat_expr_bytes(&ri.expression_bytes);
+
             rules.push(NatRule {
                 handle: ri.handle,
-                iface: String::new(),
+                iface,
                 kind,
                 src_addr: None,
                 dst_addr: None,
-                to_addr: None,
-                to_port: None,
+                to_addr,
+                to_port,
             });
         }
 
-        // TODO: parse expression_bytes for to_addr/iface
-        // nftables expression TLV format:
-        //   NFTA_EXPR_NAME (string) → "masq"/"nat"/"snat"/"dnat"
-        //   NFTA_EXPR_DATA (nested) → type-specific attributes
-        // For now, comment-based kind detection is used.
         Ok(rules)
     }
+}
+
+/// Parse nftables expression bytes to extract NAT target address, port, and interface.
+///
+/// The expression_bytes contain raw Netlink Attributes (NLA) encoding the
+/// nftables rule expressions. We parse the TLV structure to find:
+/// - "masq" → Masquerade (no address)
+/// - "nat" → SNAT/DNAT with optional address + port
+/// - "cmp" with oifname → interface name
+///
+/// Format per expression (NFTA_LIST_ELEM nested):
+///   NFTA_EXPR_NAME (1): string → expression type name
+///   NFTA_EXPR_DATA (2): nested → expression-specific data
+fn parse_nat_expr_bytes(data: &[u8]) -> (Option<IpAddr>, Option<u16>, String) {
+    use std::net::IpAddr;
+    let mut to_addr: Option<IpAddr> = None;
+    let mut to_port: Option<u16> = None;
+    let mut iface = String::new();
+
+    const NLA_F_NESTED: u16 = 0x8000;
+    const NFTA_LIST_ELEM: u16 = 0x8000; // nested
+    const NFTA_EXPR_NAME: u16 = 1;
+    const NFTA_EXPR_DATA: u16 = 2 | NLA_F_NESTED;
+    // NAT-specific sub-attributes (from kernel uapi)
+    const NFTA_NAT_REG_ADDR_MIN: u16 = 2;
+    const NFTA_NAT_REG_PROTO_MIN: u16 = 4;
+
+    // CMP sub-attributes
+    const NFTA_CMP_SREG: u16 = 1;
+    const NFTA_CMP_OP: u16 = 2;
+    const NFTA_CMP_DATA: u16 = 3;
+
+    // Meta sub-attributes
+    const NFTA_META_DREG: u16 = 1;
+    const NFTA_META_KEY: u16 = 2;
+
+    let mut i = 0;
+    while i + 4 <= data.len() {
+        let attr_len = u16::from_be_bytes([data[i], data[i + 1]]) as usize;
+        let attr_type = u16::from_be_bytes([data[i + 2], data[i + 3]]);
+        if attr_len < 4 || i + attr_len > data.len() {
+            break;
+        }
+        let value = &data[i + 4..i + attr_len];
+
+        if attr_type == NFTA_LIST_ELEM {
+            // Parse nested expression
+            let mut j = 0;
+            let mut expr_name = String::new();
+            let mut expr_data: Option<&[u8]> = None;
+
+            while j + 4 <= value.len() {
+                let sub_len = u16::from_be_bytes([value[j], value[j + 1]]) as usize;
+                let sub_type = u16::from_be_bytes([value[j + 2], value[j + 3]]);
+                if sub_len < 4 || j + sub_len > value.len() {
+                    break;
+                }
+                let sub_val = &value[j + 4..j + sub_len];
+
+                match sub_type {
+                    t if t == NFTA_EXPR_NAME => {
+                        expr_name = String::from_utf8_lossy(sub_val)
+                            .trim_end_matches('\0')
+                            .to_string();
+                    }
+                    t if t == NFTA_EXPR_DATA => {
+                        expr_data = Some(sub_val);
+                    }
+                    _ => {}
+                }
+                j += sub_len;
+            }
+
+            match expr_name.as_str() {
+                "nat" => {
+                    if let Some(ndata) = expr_data {
+                        let mut k = 0;
+                        while k + 4 <= ndata.len() {
+                            let nlen = u16::from_be_bytes([ndata[k], ndata[k + 1]]) as usize;
+                            let ntype = u16::from_be_bytes([ndata[k + 2], ndata[k + 3]]);
+                            if nlen < 4 || k + nlen > ndata.len() {
+                                break;
+                            }
+                            let nval = &ndata[k + 4..k + nlen];
+                            match ntype {
+                                t if t == NFTA_NAT_REG_ADDR_MIN && nval.len() >= 4 => {
+                                    to_addr = Some(IpAddr::V4(std::net::Ipv4Addr::new(
+                                        nval[0], nval[1], nval[2], nval[3],
+                                    )));
+                                }
+                                t if t == NFTA_NAT_REG_PROTO_MIN && nval.len() >= 2 => {
+                                    to_port = Some(u16::from_be_bytes([nval[0], nval[1]]));
+                                }
+                                _ => {}
+                            }
+                            k += nlen;
+                        }
+                    }
+                }
+                "masq" => {
+                    // Masquerade — no address needed
+                }
+                _ => {}
+            }
+        }
+
+        i += attr_len;
+    }
+
+    (to_addr, to_port, iface)
 }
 
 // ─── NetlinkRoute ─────────────────────────────────────

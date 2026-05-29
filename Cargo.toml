@@ -12,7 +12,7 @@ features = ["api", "web", "mock"]
 [features]
 default = ["mock"]
 mock = []                              # In-memory mock backend (tests / Windows dev)
-real = ["dep:nftnl", "dep:nlink"]      # Production backend via netlink (Linux only)
+real = ["dep:nftnl", "dep:nlink", "dep:libc"]      # Production backend via netlink (Linux only)
 api = ["dep:axum", "dep:tower", "dep:tokio-stream"]
 web = ["api", "dep:tera"]              # Web UI dashboard (includes API)
 
@@ -48,7 +48,7 @@ metrics-exporter-prometheus = "0.16"
 # Utilities
 argon2 = { version = "0.5", features = ["std"] }
 futures = "0.3"
-libc = "0.2"
+libc = { version = "0.2", optional = true }
 md-5 = "0.10"
 uuid = { version = "1", features = ["v4"] }
 
@@ -81,4 +81,8 @@ harness = false
 
 [[bench]]
 name = "phase2"
+harness = false
+
+[[bench]]
+name = "routing"
 harness = false

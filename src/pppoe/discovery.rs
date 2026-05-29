@@ -634,21 +634,281 @@ mod tests {
 
 #[cfg(feature = "real")]
 mod real_backend {
-    struct RealPppoeBackend {
-        fds: std::collections::HashMap<String, (i32, i32)>,
-        bound: Vec<String>,
+    use super::*;
+    use anyhow::{Result, bail};
+    use std::os::unix::io::RawFd;
+
+    type FdMap = std::collections::HashMap<String, (RawFd, RawFd)>;
+
+    pub(super) struct RealPppoeBackend {
+        fds: std::sync::Arc<std::sync::RwLock<FdMap>>,
+        bound: std::sync::Arc<std::sync::RwLock<Vec<String>>>,
     }
 
     impl RealPppoeBackend {
-        fn new() -> Self {
+        pub(super) fn new() -> Self {
             Self {
-                fds: std::collections::HashMap::new(),
-                bound: Vec::new(),
+                fds: std::sync::Arc::new(std::sync::RwLock::new(FdMap::new())),
+                bound: std::sync::Arc::new(std::sync::RwLock::new(Vec::new())),
             }
         }
 
-        fn open_sockets(_iface: &str) -> anyhow::Result<(i32, i32)> {
-            anyhow::bail!("raw socket PPPoE not yet implemented")
+        /// Open AF_PACKET raw sockets for PPPoE discovery and session.
+        fn open_sockets(iface: &str) -> Result<(RawFd, RawFd)> {
+            let proto_disco = (ETH_PPPOE_DISCOVERY as u16).to_be() as i32;
+            let proto_sess = (ETH_PPPOE_SESSION as u16).to_be() as i32;
+
+            // Create discovery socket
+            let d_fd = unsafe {
+                libc::socket(
+                    libc::AF_PACKET,
+                    libc::SOCK_RAW | libc::SOCK_NONBLOCK,
+                    proto_disco,
+                )
+            };
+            if d_fd < 0 {
+                bail!(
+                    "PPPoE discovery socket: {}",
+                    std::io::Error::last_os_error()
+                );
+            }
+
+            // Create session socket
+            let s_fd = unsafe {
+                libc::socket(
+                    libc::AF_PACKET,
+                    libc::SOCK_RAW | libc::SOCK_NONBLOCK,
+                    proto_sess,
+                )
+            };
+            if s_fd < 0 {
+                unsafe {
+                    libc::close(d_fd);
+                }
+                bail!("PPPoE session socket: {}", std::io::Error::last_os_error());
+            }
+
+            // Resolve interface index
+            let idx = Self::iface_index(iface)?;
+
+            // Bind discovery socket
+            let mut addr: libc::sockaddr_ll = unsafe { std::mem::zeroed() };
+            addr.sll_family = libc::AF_PACKET as u16;
+            addr.sll_protocol = proto_disco as u16;
+            addr.sll_ifindex = idx;
+
+            let r = unsafe {
+                libc::bind(
+                    d_fd,
+                    &addr as *const _ as *const libc::sockaddr,
+                    std::mem::size_of::<libc::sockaddr_ll>() as u32,
+                )
+            };
+            if r < 0 {
+                unsafe {
+                    libc::close(d_fd);
+                    libc::close(s_fd);
+                }
+                bail!(
+                    "bind discovery on {iface}: {}",
+                    std::io::Error::last_os_error()
+                );
+            }
+
+            // Bind session socket
+            addr.sll_protocol = proto_sess as u16;
+            let r = unsafe {
+                libc::bind(
+                    s_fd,
+                    &addr as *const _ as *const libc::sockaddr,
+                    std::mem::size_of::<libc::sockaddr_ll>() as u32,
+                )
+            };
+            if r < 0 {
+                unsafe {
+                    libc::close(d_fd);
+                    libc::close(s_fd);
+                }
+                bail!(
+                    "bind session on {iface}: {}",
+                    std::io::Error::last_os_error()
+                );
+            }
+
+            tracing::info!("PPPoE sockets opened on {iface}");
+            Ok((d_fd, s_fd))
+        }
+
+        fn iface_index(iface: &str) -> Result<i32> {
+            let cstr = std::ffi::CString::new(iface)
+                .map_err(|_| anyhow::anyhow!("invalid iface name: {iface}"))?;
+            let idx = unsafe { libc::if_nametoindex(cstr.as_ptr()) };
+            if idx == 0 {
+                bail!(
+                    "interface '{iface}' not found: {}",
+                    std::io::Error::last_os_error()
+                );
+            }
+            Ok(idx as i32)
+        }
+
+        fn build_eth_frame(
+            dst: &[u8; 6],
+            src: &[u8; 6],
+            ethertype: u16,
+            payload: &[u8],
+        ) -> Vec<u8> {
+            let mut frame = Vec::with_capacity(14 + payload.len());
+            frame.extend_from_slice(dst);
+            frame.extend_from_slice(src);
+            frame.extend_from_slice(&ethertype.to_be_bytes());
+            frame.extend_from_slice(payload);
+            frame
+        }
+
+        fn recv_frame(fd: RawFd, timeout_ms: u64) -> Result<Vec<u8>> {
+            let start = std::time::Instant::now();
+            let mut buf = vec![0u8; 4096];
+            loop {
+                let r = unsafe {
+                    libc::recvfrom(
+                        fd,
+                        buf.as_mut_ptr() as *mut libc::c_void,
+                        buf.len(),
+                        libc::MSG_DONTWAIT,
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                    )
+                };
+                if r > 0 {
+                    buf.truncate(r as usize);
+                    return Ok(buf);
+                }
+                if r == 0 {
+                    bail!("socket closed");
+                }
+                let err = std::io::Error::last_os_error();
+                if err.kind() != std::io::ErrorKind::WouldBlock {
+                    bail!("recv: {err}");
+                }
+                if start.elapsed() > std::time::Duration::from_millis(timeout_ms) {
+                    bail!("timeout after {timeout_ms}ms");
+                }
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+        }
+    }
+
+    impl Drop for RealPppoeBackend {
+        fn drop(&mut self) {
+            if let Ok(fds) = self.fds.read() {
+                for (_, (d, s)) in fds.iter() {
+                    unsafe {
+                        libc::close(*d);
+                    }
+                    unsafe {
+                        libc::close(*s);
+                    }
+                }
+            }
+        }
+    }
+
+    #[async_trait]
+    impl PppoeBackend for RealPppoeBackend {
+        async fn send(&self, iface: &str, envelope: &PppoeEnvelope) -> Result<()> {
+            let fds = self.fds.read().map_err(|e| anyhow::anyhow!("lock: {e}"))?;
+            let (df, sf) = fds
+                .get(iface)
+                .ok_or_else(|| anyhow::anyhow!("{iface} not bound"))?;
+            let ethertype = match envelope.packet.code {
+                PADI | PADO | PADR | PADS => ETH_PPPOE_DISCOVERY,
+                _ => ETH_PPPOE_SESSION,
+            };
+            let fd = if ethertype == ETH_PPPOE_DISCOVERY {
+                *df
+            } else {
+                *sf
+            };
+            let encoded = envelope.encode();
+            let frame =
+                Self::build_eth_frame(&envelope.dst_mac, &envelope.src_mac, ethertype, &encoded);
+            let r = unsafe {
+                libc::sendto(
+                    fd,
+                    frame.as_ptr() as *const libc::c_void,
+                    frame.len(),
+                    0,
+                    std::ptr::null(),
+                    0,
+                )
+            };
+            if r < 0 {
+                bail!("send on {iface}: {}", std::io::Error::last_os_error());
+            }
+            Ok(())
+        }
+
+        async fn recv(&self, iface: &str) -> Result<PppoeEnvelope> {
+            let fds = self.fds.read().map_err(|e| anyhow::anyhow!("lock: {e}"))?;
+            let (d, s) = fds
+                .get(iface)
+                .ok_or_else(|| anyhow::anyhow!("{iface} not bound"))?;
+            let (df, sf) = (*d, *s);
+            drop(fds);
+            let raw = tokio::task::spawn_blocking(move || -> Result<Vec<u8>> {
+                Self::recv_frame(df, 2000).or_else(|_| Self::recv_frame(sf, 2000))
+            })
+            .await
+            .map_err(|e| anyhow::anyhow!("spawn: {e}"))??;
+            PppoeEnvelope::decode(&raw)
+        }
+
+        async fn recv_timeout(&self, iface: &str, timeout_ms: u64) -> Result<PppoeEnvelope> {
+            let fds = self.fds.read().map_err(|e| anyhow::anyhow!("lock: {e}"))?;
+            let (d, s) = fds
+                .get(iface)
+                .ok_or_else(|| anyhow::anyhow!("{iface} not bound"))?;
+            let (df, sf) = (*d, *s);
+            drop(fds);
+            let raw = tokio::task::spawn_blocking(move || -> Result<Vec<u8>> {
+                Self::recv_frame(df, timeout_ms).or_else(|_| Self::recv_frame(sf, timeout_ms))
+            })
+            .await
+            .map_err(|e| anyhow::anyhow!("spawn: {e}"))??;
+            PppoeEnvelope::decode(&raw)
+        }
+
+        async fn bind(&self, iface: &str) -> Result<()> {
+            let (d, s) = Self::open_sockets(iface)?;
+            self.fds
+                .write()
+                .map_err(|e| anyhow::anyhow!("lock: {e}"))?
+                .insert(iface.to_string(), (d, s));
+            self.bound
+                .write()
+                .map_err(|e| anyhow::anyhow!("lock: {e}"))?
+                .push(iface.to_string());
+            tracing::info!("bound to {iface}");
+            Ok(())
+        }
+
+        async fn unbind(&self, iface: &str) -> Result<()> {
+            let mut fds = self.fds.write().map_err(|e| anyhow::anyhow!("lock: {e}"))?;
+            if let Some((d, s)) = fds.remove(iface) {
+                unsafe {
+                    libc::close(d);
+                }
+                unsafe {
+                    libc::close(s);
+                }
+            }
+            self.bound
+                .write()
+                .map_err(|e| anyhow::anyhow!("lock: {e}"))?
+                .retain(|i| i != iface);
+            tracing::info!("unbound from {iface}");
+            Ok(())
         }
     }
 }

@@ -1,5 +1,5 @@
 #![deny(unused_crate_dependencies)]
-#![deny(unsafe_code)]
+#![cfg_attr(not(feature = "real"), deny(unsafe_code))]
 #![deny(unreachable_pub, unused_imports)]
 
 #[cfg(test)]
@@ -41,6 +41,7 @@ use axum as _;
 use bincode as _;
 use clap as _;
 use futures as _;
+#[cfg(feature = "real")]
 use libc as _;
 use md5 as _;
 use metrics as _;
