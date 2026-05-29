@@ -1,5 +1,5 @@
 #[cfg(feature = "real")]
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 #[cfg(feature = "real")]
 use async_trait::async_trait;
 #[cfg(feature = "real")]
