@@ -633,15 +633,14 @@ mod tests {
 }
 
 #[cfg(feature = "real")]
-#[allow(unsafe_code)]
 mod real_backend {
-    pub(super) struct RealPppoeBackend {
+    struct RealPppoeBackend {
         fds: std::collections::HashMap<String, (i32, i32)>,
         bound: Vec<String>,
     }
 
     impl RealPppoeBackend {
-        pub(super) fn new() -> Self {
+        fn new() -> Self {
             Self {
                 fds: std::collections::HashMap::new(),
                 bound: Vec::new(),
