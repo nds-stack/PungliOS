@@ -106,15 +106,6 @@ impl NetlinkIfaces for RealBackend {
                         parent, config.name
                     ))?;
             }
-            Some(InterfaceKind::Vlan {
-                ref parent,
-                vlan_id,
-            }) => {
-                self.rt_conn
-                    .add_link(VlanLink::new(&config.name, parent).vlan_id(vlan_id))
-                    .await
-                    .context(format!("create vlan '{}.{}'", parent, config.name))?;
-            }
             _ => {
                 // Dummy is the default fallback
                 self.rt_conn
