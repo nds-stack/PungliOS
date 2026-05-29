@@ -3,6 +3,8 @@ use anyhow::{Context, Result, bail};
 #[cfg(feature = "real")]
 use async_trait::async_trait;
 #[cfg(feature = "real")]
+use nlink::netlink{Connection, Nftables};
+#[cfg(feature = "real")]
 use nlink::netlink::link::{BridgeLink, DummyLink, VlanLink};
 #[cfg(feature = "real")]
 use nlink::netlink::messages::RouteMessage;
@@ -91,6 +93,18 @@ impl NetlinkIfaces for RealBackend {
                     .add_link(BridgeLink::new(&config.name))
                     .await
                     .context(format!("create bridge '{}'", config.name))?;
+            }
+            Some(InterfaceKind::Vlan {
+                ref parent,
+                vlan_id,
+            }) => {
+                self.rt_conn
+                    .add_link(VlanLink::new(&config.name, parent, vlan_id))
+                    .await
+                    .context(format!(
+                        "create vlan '{}.{}'",
+                        parent, config.name
+                    ))?;
             }
             Some(InterfaceKind::Vlan {
                 ref parent,
