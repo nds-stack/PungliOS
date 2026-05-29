@@ -659,15 +659,15 @@ mod real_backend {
     type FdMap = std::collections::HashMap<String, (RawFd, RawFd)>;
 
     pub(super) struct RealPppoeBackend {
-        fds: std::sync::Arc<std::sync::RwLock<FdMap>>,
-        bound: std::sync::Arc<std::sync::RwLock<Vec<String>>>,
+        fds: tokio::sync::RwLock<FdMap>,
+        bound: tokio::sync::RwLock<Vec<String>>,
     }
 
     impl RealPppoeBackend {
         pub(super) fn new() -> Self {
             Self {
-                fds: std::sync::Arc::new(std::sync::RwLock::new(FdMap::new())),
-                bound: std::sync::Arc::new(std::sync::RwLock::new(Vec::new())),
+                fds: tokio::sync::RwLock::new(FdMap::new()),
+                bound: tokio::sync::RwLock::new(Vec::new()),
             }
         }
 
@@ -819,7 +819,8 @@ mod real_backend {
 
     impl Drop for RealPppoeBackend {
         fn drop(&mut self) {
-            if let Ok(fds) = self.fds.read() {
+            let fds = self.fds.try_read();
+            if let Ok(fds) = fds {
                 for (_, (d, s)) in fds.iter() {
                     unsafe {
                         libc::close(*d);
@@ -835,7 +836,7 @@ mod real_backend {
     #[async_trait]
     impl PppoeBackend for RealPppoeBackend {
         async fn send(&self, iface: &str, envelope: &PppoeEnvelope) -> Result<()> {
-            let fds = self.fds.read().map_err(|e| anyhow::anyhow!("lock: {e}"))?;
+            let fds = self.fds.read().await;
             let (df, sf) = fds
                 .get(iface)
                 .ok_or_else(|| anyhow::anyhow!("{iface} not bound"))?;
@@ -879,7 +880,7 @@ mod real_backend {
         }
 
         async fn recv(&self, iface: &str) -> Result<PppoeEnvelope> {
-            let fds = self.fds.read().map_err(|e| anyhow::anyhow!("lock: {e}"))?;
+            let fds = self.fds.read().await;
             let (d, s) = fds
                 .get(iface)
                 .ok_or_else(|| anyhow::anyhow!("{iface} not bound"))?;
@@ -894,7 +895,7 @@ mod real_backend {
         }
 
         async fn recv_timeout(&self, iface: &str, timeout_ms: u64) -> Result<PppoeEnvelope> {
-            let fds = self.fds.read().map_err(|e| anyhow::anyhow!("lock: {e}"))?;
+            let fds = self.fds.read().await;
             let (d, s) = fds
                 .get(iface)
                 .ok_or_else(|| anyhow::anyhow!("{iface} not bound"))?;
@@ -923,7 +924,7 @@ mod real_backend {
         }
 
         async fn unbind(&self, iface: &str) -> Result<()> {
-            let mut fds = self.fds.write().map_err(|e| anyhow::anyhow!("lock: {e}"))?;
+            let mut fds = self.fds.write().await;
             if let Some((d, s)) = fds.remove(iface) {
                 unsafe {
                     libc::close(d);
