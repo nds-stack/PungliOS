@@ -3,7 +3,7 @@ use anyhow::{Context, Result, bail};
 #[cfg(feature = "real")]
 use async_trait::async_trait;
 #[cfg(feature = "real")]
-use nlink::netlink{Connection, Nftables};
+use nlink::netlink::{Connection, Nftables};
 #[cfg(feature = "real")]
 use nlink::netlink::link::{BridgeLink, DummyLink, VlanLink};
 #[cfg(feature = "real")]
