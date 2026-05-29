@@ -311,7 +311,7 @@ impl NetlinkConntrack for RealBackend {
                 .and_then(|s| s.parse::<u16>().ok())
                 .unwrap_or(0);
             entries.push(ConntrackEntry {
-                protocol: match parts.get(2).unwrap_or(&"0").as_str() {
+                protocol: match parts.get(2).map(|s| s.as_str()).unwrap_or("0") {
                     "tcp" => 6,
                     "udp" => 17,
                     _ => 0,
