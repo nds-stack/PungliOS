@@ -409,7 +409,35 @@ impl NetlinkNat for RealBackend {
     }
 
     async fn list_rules(&self) -> Result<Vec<NatRule>> {
-        bail!("NAT rule listing not implemented")
+        let all = self
+            .nf_conn
+            .list_rules("punglios-nat", Family::Inet)
+            .await
+            .context("failed to list nftables rules")?;
+
+        let mut rules = Vec::new();
+        for ri in all {
+            let kind = match ri.chain.as_str() {
+                "postrouting" => NatKind::Snat,
+                "prerouting" => NatKind::Dnat,
+                _ => continue,
+            };
+            rules.push(NatRule {
+                handle: ri.handle,
+                iface: String::new(),
+                kind,
+                src_addr: None,
+                dst_addr: None,
+                to_addr: None,
+                to_port: None,
+            });
+        }
+
+        // Try to detect masquerade by checking rules that have "punglios" comment
+        // and no snat/dnat expression. Full expression parsing (to_addr, iface)
+        // requires parsing raw expression_bytes from nlink RuleInfo.
+        // TODO: implement rich expression byte parsing for to_addr/iface
+        Ok(rules)
     }
 }
 

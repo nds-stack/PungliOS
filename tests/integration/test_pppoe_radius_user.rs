@@ -77,7 +77,8 @@ async fn test_pppoe_discovery_with_radius_auth() {
     let (_sid, _ac_name) = client_handle.await.unwrap().unwrap();
 
     // RADIUS authenticates the user
-    let mut radius_client = RadiusClient::new(radius, Ipv4Addr::new(10, 0, 0, 1), "nas01");
+    let mut radius_client =
+        RadiusClient::new(radius, Ipv4Addr::new(10, 0, 0, 1), "secret", "nas01");
     let auth_result = radius_client
         .authenticate("user1", "pass1", "aa:bb:cc:dd:ee:ff")
         .unwrap();
@@ -118,7 +119,8 @@ async fn test_user_radius_pppoe_full_flow() {
 
     // RADIUS auth
     let radius = setup_radius_backend();
-    let mut radius_client = RadiusClient::new(radius, Ipv4Addr::new(10, 0, 0, 1), "nas01");
+    let mut radius_client =
+        RadiusClient::new(radius, Ipv4Addr::new(10, 0, 0, 1), "secret", "nas01");
     let auth_result = radius_client
         .authenticate("user1", "pass1", "aa:bb:cc:dd:ee:ff")
         .unwrap();
@@ -156,7 +158,12 @@ async fn test_user_create_and_radius_auth() {
     radius_backend.add_user(UserRecord::new("testuser", "testpass", true));
 
     // Authenticate via RADIUS
-    let mut radius_client = RadiusClient::new(radius_backend, Ipv4Addr::new(10, 0, 0, 1), "nas01");
+    let mut radius_client = RadiusClient::new(
+        radius_backend,
+        Ipv4Addr::new(10, 0, 0, 1),
+        "secret",
+        "nas01",
+    );
     let response = radius_client
         .authenticate("testuser", "testpass", "00:11:22:33:44:55")
         .unwrap();

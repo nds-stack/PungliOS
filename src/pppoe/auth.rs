@@ -1,4 +1,5 @@
 use anyhow::{Result, bail};
+use md5::{Digest, Md5};
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::sync::{Arc, RwLock};
@@ -355,21 +356,63 @@ impl RadiusBackend for MockRadiusBackend {
     }
 }
 
+/// Encrypt RADIUS password per RFC 2865 Section 5.2.
+///
+/// Uses MD5 XOR block cipher with the shared secret:
+/// - Block 1: MD5(secret + Request Authenticator) XOR password[0..16]
+/// - Block N: MD5(secret + encrypted[N-1]) XOR password[N*16..(N+1)*16]
+fn encrypt_radius_password(
+    password: &str,
+    secret: &str,
+    authenticator: &[u8; 16],
+) -> Result<Vec<u8>> {
+    if password.len() > 128 {
+        bail!("RADIUS password exceeds 128 byte limit");
+    }
+    if secret.is_empty() {
+        bail!("RADIUS shared secret is empty");
+    }
+
+    let pw_bytes = password.as_bytes();
+    let block_count = pw_bytes.len().div_ceil(16);
+    let padded_len = block_count * 16;
+    let mut padded = pw_bytes.to_vec();
+    padded.resize(padded_len, 0);
+
+    let mut encrypted = Vec::with_capacity(padded_len);
+    let mut prev = authenticator.to_vec();
+
+    for chunk in padded.chunks(16) {
+        let mut hasher = Md5::new();
+        hasher.update(secret.as_bytes());
+        hasher.update(&prev);
+        let hash = hasher.finalize();
+
+        let enc: Vec<u8> = chunk.iter().zip(hash.iter()).map(|(a, b)| a ^ b).collect();
+        encrypted.extend_from_slice(&enc);
+        prev = enc;
+    }
+
+    Ok(encrypted)
+}
+
 pub struct RadiusClient<B: RadiusBackend> {
     backend: B,
     nas_ip: Ipv4Addr,
     nas_identifier: String,
+    secret: String,
     auth_port: u16,
     acct_port: u16,
     next_identifier: u8,
 }
 
 impl<B: RadiusBackend> RadiusClient<B> {
-    pub fn new(backend: B, nas_ip: Ipv4Addr, nas_identifier: &str) -> Self {
+    pub fn new(backend: B, nas_ip: Ipv4Addr, nas_identifier: &str, secret: &str) -> Self {
         Self {
             backend,
             nas_ip,
             nas_identifier: nas_identifier.into(),
+            secret: secret.into(),
             auth_port: RADIUS_PORT,
             acct_port: RADIUS_ACCT_PORT,
             next_identifier: 0,
@@ -397,8 +440,10 @@ impl<B: RadiusBackend> RadiusClient<B> {
         let mut req = RadiusPacket::new(ACCESS_REQUEST, self.next_id());
         req.attributes
             .push(RadiusAttribute::new_string(ATTR_USER_NAME, username));
-        req.attributes
-            .push(RadiusAttribute::new_string(ATTR_USER_PASSWORD, password));
+        req.attributes.push(RadiusAttribute::new_bytes(
+            ATTR_USER_PASSWORD,
+            encrypt_radius_password(password, &self.secret, &req.authenticator)?,
+        ));
         req.attributes
             .push(RadiusAttribute::new_ip(ATTR_NAS_IP_ADDRESS, self.nas_ip));
         req.attributes
@@ -882,7 +927,7 @@ mod tests {
         let backend = MockRadiusBackend::new("secret", "nas01");
         backend.add_user(UserRecord::new("user1", "pass1", true));
 
-        let mut client = RadiusClient::new(backend, Ipv4Addr::new(10, 0, 0, 1), "nas01");
+        let mut client = RadiusClient::new(backend, Ipv4Addr::new(10, 0, 0, 1), "secret", "nas01");
 
         let response = client
             .authenticate("user1", "pass1", "aa:bb:cc:dd:ee:ff")
@@ -899,7 +944,7 @@ mod tests {
         let backend = MockRadiusBackend::new("secret", "nas01");
         backend.add_user(UserRecord::new("user1", "pass1", false));
 
-        let mut client = RadiusClient::new(backend, Ipv4Addr::new(10, 0, 0, 1), "nas01");
+        let mut client = RadiusClient::new(backend, Ipv4Addr::new(10, 0, 0, 1), "secret", "nas01");
 
         let response = client
             .authenticate("user1", "pass1", "aa:bb:cc:dd:ee:ff")
@@ -910,7 +955,7 @@ mod tests {
     #[test]
     fn test_radius_auth_user_not_found() {
         let backend = MockRadiusBackend::new("secret", "nas01");
-        let mut client = RadiusClient::new(backend, Ipv4Addr::new(10, 0, 0, 1), "nas01");
+        let mut client = RadiusClient::new(backend, Ipv4Addr::new(10, 0, 0, 1), "secret", "nas01");
 
         let result = client.authenticate("unknown", "pass", "aa:bb:cc:dd:ee:ff");
         assert!(result.is_err());
@@ -923,7 +968,7 @@ mod tests {
         record.ip_address = Some(Ipv4Addr::new(10, 0, 1, 100));
         backend.add_user(record);
 
-        let mut client = RadiusClient::new(backend, Ipv4Addr::new(10, 0, 0, 1), "nas01");
+        let mut client = RadiusClient::new(backend, Ipv4Addr::new(10, 0, 0, 1), "secret", "nas01");
 
         let response = client
             .authenticate("user1", "pass1", "aa:bb:cc:dd:ee:ff")
@@ -938,7 +983,7 @@ mod tests {
         let backend = MockRadiusBackend::new("secret", "nas01");
         backend.add_user(UserRecord::new("user1", "pass1", true));
 
-        let client = RadiusClient::new(backend, Ipv4Addr::new(10, 0, 0, 1), "nas01");
+        let client = RadiusClient::new(backend, Ipv4Addr::new(10, 0, 0, 1), "secret", "nas01");
 
         let mut mgr = RadiusSessionManager::new(client);
 
@@ -971,7 +1016,7 @@ mod tests {
         let backend = MockRadiusBackend::new("secret", "nas01");
         backend.add_user(UserRecord::new("user1", "pass1", true));
 
-        let mut client = RadiusClient::new(backend, Ipv4Addr::new(10, 0, 0, 1), "nas01");
+        let mut client = RadiusClient::new(backend, Ipv4Addr::new(10, 0, 0, 1), "secret", "nas01");
 
         let resp = client
             .accounting_interim(
@@ -996,7 +1041,7 @@ mod tests {
     #[test]
     fn test_session_not_found_stop() {
         let backend = MockRadiusBackend::new("secret", "nas01");
-        let client = RadiusClient::new(backend, Ipv4Addr::new(10, 0, 0, 1), "nas01");
+        let client = RadiusClient::new(backend, Ipv4Addr::new(10, 0, 0, 1), "secret", "nas01");
         let mut mgr = RadiusSessionManager::new(client);
 
         let result =
@@ -1012,7 +1057,7 @@ mod tests {
         backend.add_user(UserRecord::new("user3", "pass3", false));
         assert_eq!(backend.user_count(), 3);
 
-        let mut client = RadiusClient::new(backend, Ipv4Addr::new(10, 0, 0, 1), "nas01");
+        let mut client = RadiusClient::new(backend, Ipv4Addr::new(10, 0, 0, 1), "secret", "nas01");
 
         let r1 = client.authenticate("user1", "pass1", "mac1").unwrap();
         assert_eq!(r1.code, ACCESS_ACCEPT);

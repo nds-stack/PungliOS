@@ -41,6 +41,7 @@ use axum as _;
 use bincode as _;
 use clap as _;
 use futures as _;
+use md5 as _;
 use metrics as _;
 use metrics_exporter_prometheus as _;
 #[cfg(feature = "real")]
