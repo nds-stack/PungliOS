@@ -3,11 +3,11 @@ use anyhow::{Context, Result, bail};
 #[cfg(feature = "real")]
 use async_trait::async_trait;
 #[cfg(feature = "real")]
+use nlink::netlink::link::{BridgeLink, DummyLink, VlanLink};
+#[cfg(feature = "real")]
 use nlink::netlink::messages::RouteMessage;
 #[cfg(feature = "real")]
 use nlink::netlink::nftables::{Chain, ChainType, Family, Hook, Policy, Priority, Rule};
-#[cfg(feature = "real")]
-use nlink::netlink::{Connection, Nftables};
 #[cfg(feature = "real")]
 use std::net::{IpAddr, Ipv4Addr};
 
@@ -82,13 +82,72 @@ impl NetlinkIfaces for RealBackend {
         Ok(link_to_interface(&link))
     }
 
-    async fn create(&self, _config: &InterfaceConfig) -> Result<Interface> {
-        bail!("interface creation not implemented in real backend")
+    async fn create(&self, config: &InterfaceConfig) -> Result<Interface> {
+        use nlink::netlink::link::LinkConfig;
+
+        match config.kind {
+            Some(InterfaceKind::Bridge) => {
+                self.rt_conn
+                    .add_link(BridgeLink::new(&config.name))
+                    .await
+                    .context(format!("create bridge '{}'", config.name))?;
+            }
+            Some(InterfaceKind::Vlan {
+                ref parent,
+                vlan_id,
+            }) => {
+                self.rt_conn
+                    .add_link(VlanLink::new(&config.name, parent).vlan_id(vlan_id))
+                    .await
+                    .context(format!("create vlan '{}.{}'", parent, config.name))?;
+            }
+            _ => {
+                // Dummy is the default fallback
+                self.rt_conn
+                    .add_link(DummyLink::new(&config.name))
+                    .await
+                    .context(format!("create dummy '{}'", config.name))?;
+            }
+        }
+
+        if let Some(mtu) = config.mtu {
+            self.rt_conn
+                .set_link_mtu(&config.name, mtu as u32)
+                .await
+                .context("set mtu")?;
+        }
+
+        self.rt_conn
+            .set_link_up(&config.name)
+            .await
+            .context("set up")?;
+
+        for addr in &config.addresses {
+            self.add_address(&config.name, *addr)
+                .await
+                .context("add address")?;
+        }
+
+        if let Some(ref bridge) = config.bridge {
+            self.rt_conn
+                .enslave(&config.name, bridge)
+                .await
+                .context("enslave to bridge")?;
+        }
+
+        let link = self
+            .rt_conn
+            .get_link_by_name(&config.name)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("interface created but not found"))?;
+        Ok(link_to_interface(&link))
     }
 
     async fn delete(&self, name: &str) -> Result<()> {
-        self.rt_conn.set_link_down(name).await?;
-        bail!("use 'ip link delete {name}' directly — not implemented via netlink")
+        self.rt_conn
+            .del_link(name)
+            .await
+            .context(format!("delete interface '{name}'"))
     }
 
     async fn set_up(&self, name: &str) -> Result<()> {
