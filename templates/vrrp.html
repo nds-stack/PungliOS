@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
+  <div class="stat-card">
+    <p class="text-gray-400 text-sm">Master</p>
+    <p class="text-xl font-bold mt-2 text-green-400">{{ vrrp_status.master_instance | default(value="—") }}</p>
+    <p class="text-xs text-gray-500 mt-1">Current master</p>
+  </div>
+  <div class="stat-card">
+    <p class="text-gray-400 text-sm">Instances</p>
+    <p class="text-3xl font-bold mt-2">{{ vrrp_status.instances_count | default(value=0) }}</p>
+    <p class="text-xs text-gray-500 mt-1">Configured</p>
+  </div>
+  <div class="stat-card">
+    <p class="text-gray-400 text-sm">Backup</p>
+    <p class="text-3xl font-bold mt-2">{{ vrrp_status.backup_count | default(value=0) }}</p>
+    <p class="text-xs text-gray-500 mt-1">Standby instances</p>
+  </div>
+</div>
+
+<div class="flex items-center justify-between mb-5">
+  <p class="text-gray-400 text-sm">{{ instances | length }} instance(s)</p>
+  <div x-data="{ open: false }">
+    <button @click="open = true" class="btn btn-primary">+ Add Instance</button>
+    <div x-show="open" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+      <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700" @click.stop>
+        <h3 class="text-lg font-semibold mb-4">New VRRP Instance</h3>
+        <form @submit.prevent="fetch('/api/v1/vrrp/instances',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$event.target.name.value,interface:$event.target.iface.value,virtual_ip:$event.target.vip.value,virtual_prefix:parseInt($event.target.prefix.value)||24,priority:parseInt($event.target.priority.value)||100,vrid:parseInt($event.target.vrid.value)||1,advert_interval:parseInt($event.target.advert.value)||1,preempt:$event.target.preempt.checked,enabled:$event.target.enabled.checked})}).then(r=>{if(r.ok)location.reload()})" class="space-y-3">
+          <input name="name" placeholder="Instance name" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
+          <input name="iface" placeholder="Interface (e.g. eth0)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
+          <input name="vip" placeholder="Virtual IP (e.g. 10.0.0.254)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
+          <input name="prefix" type="number" placeholder="Prefix (e.g. 24)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+          <div class="grid grid-cols-2 gap-3">
+            <input name="priority" type="number" placeholder="Priority (1-255)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+            <input name="vrid" type="number" placeholder="VRID (1-255)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+          </div>
+          <input name="advert" type="number" placeholder="Advert interval (seconds)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+          <label class="flex items-center gap-2 text-sm"><input name="preempt" type="checkbox" checked class="rounded"> Preempt</label>
+          <label class="flex items-center gap-2 text-sm"><input name="enabled" type="checkbox" checked class="rounded"> Enabled</label>
+          <button type="submit" class="btn btn-primary w-full">Create</button>
+        </form>
+        <button @click="open = false" class="text-gray-400 text-sm mt-3">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="bg-gray-700/50 text-gray-400 uppercase text-xs tracking-wide">
+        <th class="text-left px-4 py-3">Name</th>
+        <th class="text-left px-4 py-3">VRID</th>
+        <th class="text-left px-4 py-3">Interface</th>
+        <th class="text-left px-4 py-3">Virtual IP</th>
+        <th class="text-left px-4 py-3">Priority</th>
+        <th class="text-left px-4 py-3">Preempt</th>
+        <th class="text-left px-4 py-3">Status</th>
+        <th class="text-left px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inst in instances %}
+      <tr class="border-t border-gray-700 hover:bg-gray-700/30">
+        <td class="px-4 py-3 font-medium">{{ inst.name }}</td>
+        <td class="px-4 py-3">{{ inst.vrid }}</td>
+        <td class="px-4 py-3 font-mono text-xs">{{ inst.interface }}</td>
+        <td class="px-4 py-3 font-mono text-xs">{{ inst.virtual_ip }}/{{ inst.virtual_prefix }}</td>
+        <td class="px-4 py-3">{{ inst.priority }}</td>
+        <td class="px-4 py-3">{{ inst.preempt }}</td>
+        <td class="px-4 py-3">
+          {% if inst.enabled %}
+          <span class="text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full text-xs">ENABLED</span>
+          {% else %}
+          <span class="text-gray-500 bg-gray-700 px-2 py-0.5 rounded-full text-xs">DISABLED</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3">
+          <button @click="if(confirm('Delete {{ inst.name }}?')){fetch('/api/v1/vrrp/instances/{{ inst.name }}',{method:'DELETE'}).then(r=>{if(r.ok)location.reload()})}" class="btn btn-sm btn-danger">Delete</button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">No VRRP instances</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

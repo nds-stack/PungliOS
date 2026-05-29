@@ -4,7 +4,10 @@ pub(crate) mod handlers;
 pub(crate) mod monitoring;
 
 use crate::traits::MockBackend;
-use crate::{billing, conntrack, firewall, net, qos, routing, user, wireguard};
+use crate::{
+    billing, bpf_qos, conntrack, firewall, net, plugins, pppoe, qos, routing, tenancy, user, vrrp,
+    wireguard,
+};
 use axum::{
     Json, Router,
     routing::{delete, get, post, put},
@@ -17,6 +20,7 @@ use tokio::sync::{Mutex, broadcast};
 /// Passed to every API handler via Axum's `State` extractor.
 /// All managers use mock backends by default for development/testing.
 #[derive(Clone)]
+#[allow(clippy::type_complexity)]
 pub struct AppState {
     pub iface_mgr: Arc<net::iface::InterfaceManager<MockBackend>>,
     pub fw_mgr: Arc<firewall::FirewallManager<MockBackend>>,
@@ -28,6 +32,11 @@ pub struct AppState {
     pub routing_mgr: Arc<routing::DynamicRoutingManager<routing::MockDynamicRouting>>,
     pub wg_mgr: Arc<wireguard::WireGuardManager<wireguard::MockWireguardBackend>>,
     pub billing_mgr: Arc<billing::BillingManager<billing::MockBillingBackend>>,
+    pub failover_mgr: Arc<pppoe::failover::PppFailoverManager<pppoe::failover::MockPppFailover>>,
+    pub vrrp_mgr: Arc<vrrp::VrrpManager<vrrp::MockVrrp>>,
+    pub bpf_qos_mgr: Arc<bpf_qos::BpfQosManager<bpf_qos::MockBpfQos>>,
+    pub plugin_mgr: Arc<plugins::PluginManager>,
+    pub tenancy_mgr: Arc<tenancy::TenancyManager<tenancy::MockTenancy>>,
     pub monitoring_tx: broadcast::Sender<String>,
 }
 
@@ -62,6 +71,13 @@ impl AppState {
             billing_mgr: Arc::new(billing::BillingManager::new(
                 billing::MockBillingBackend::new(),
             )),
+            failover_mgr: Arc::new(pppoe::failover::PppFailoverManager::new(
+                pppoe::failover::MockPppFailover::new(),
+            )),
+            vrrp_mgr: Arc::new(vrrp::VrrpManager::new(vrrp::MockVrrp::new())),
+            bpf_qos_mgr: Arc::new(bpf_qos::BpfQosManager::new(bpf_qos::MockBpfQos::new())),
+            plugin_mgr: Arc::new(plugins::PluginManager::new()),
+            tenancy_mgr: Arc::new(tenancy::TenancyManager::new(tenancy::MockTenancy::new())),
             monitoring_tx,
         }
     }
@@ -189,6 +205,39 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/billing/summary",
             get(handlers::get_billing_summary),
         )
+        .route("/api/v1/failover/uplinks", get(handlers::list_uplinks))
+        .route("/api/v1/failover/uplinks", post(handlers::add_uplink))
+        .route(
+            "/api/v1/failover/uplinks/{name}",
+            delete(handlers::remove_uplink),
+        )
+        .route(
+            "/api/v1/failover/status",
+            get(handlers::get_failover_status),
+        )
+        .route("/api/v1/failover/trigger", post(handlers::trigger_failover))
+        .route("/api/v1/vrrp/instances", get(handlers::list_vrrp_instances))
+        .route(
+            "/api/v1/vrrp/instances",
+            post(handlers::create_vrrp_instance),
+        )
+        .route(
+            "/api/v1/vrrp/instances/{name}",
+            delete(handlers::delete_vrrp_instance),
+        )
+        .route("/api/v1/vrrp/status", get(handlers::get_vrrp_status))
+        .route("/api/v1/bpf-qos/qdiscs", get(handlers::list_bpf_qdiscs))
+        .route("/api/v1/bpf-qos/qdiscs", post(handlers::attach_bpf_qdisc))
+        .route(
+            "/api/v1/bpf-qos/qdiscs/{iface}",
+            delete(handlers::detach_bpf_qdisc),
+        )
+        .route("/api/v1/bpf-qos/status", get(handlers::get_bpf_qos_status))
+        .route("/api/v1/plugins", get(handlers::list_plugins))
+        .route("/api/v1/plugins/status", get(handlers::get_plugin_status))
+        .route("/api/v1/tenants", get(handlers::list_tenants))
+        .route("/api/v1/tenants", post(handlers::create_tenant))
+        .route("/api/v1/tenants/{id}", delete(handlers::delete_tenant))
         .route("/api/v1/users", get(handlers::list_users))
         .route("/api/v1/users", post(handlers::create_user))
         .route("/api/v1/users/{username}", put(handlers::update_user))

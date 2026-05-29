@@ -11,6 +11,7 @@ extern crate tokio_test;
 
 pub mod api;
 pub mod billing;
+pub mod bpf_qos;
 pub mod cli;
 pub mod config;
 pub mod conntrack;
@@ -18,11 +19,14 @@ pub mod dhcp;
 pub mod dns;
 pub mod firewall;
 pub mod net;
+pub mod plugins;
 pub mod pppoe;
 pub mod qos;
 pub mod routing;
+pub mod tenancy;
 pub mod traits;
 pub mod user;
+pub mod vrrp;
 #[cfg(feature = "web")]
 pub mod web;
 pub mod wireguard;

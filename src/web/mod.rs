@@ -54,6 +54,8 @@ pub fn router(state: AppState) -> Router {
         .route("/web/routing/table", get(routing_table_page))
         .route("/web/wireguard", get(wireguard_page))
         .route("/web/billing", get(billing_page))
+        .route("/web/failover", get(failover_page))
+        .route("/web/vrrp", get(vrrp_page))
         .with_state(ws)
 }
 
@@ -428,4 +430,26 @@ async fn billing_page(State(ws): State<WebState>) -> Html<String> {
     ctx.insert("plans", &plans);
     ctx.insert("billing_summary", &summary);
     render(&ws.tmpl, "billing.html", &ctx)
+}
+
+async fn failover_page(State(ws): State<WebState>) -> Html<String> {
+    let mut ctx = Context::new();
+    let uplinks = ws.app.failover_mgr.list_uplinks().await.unwrap_or_default();
+    let status = ws.app.failover_mgr.get_status().await.ok();
+    ctx.insert("page", "failover");
+    ctx.insert("page_title", "PPPoE Failover");
+    ctx.insert("uplinks", &uplinks);
+    ctx.insert("failover_status", &status);
+    render(&ws.tmpl, "failover.html", &ctx)
+}
+
+async fn vrrp_page(State(ws): State<WebState>) -> Html<String> {
+    let mut ctx = Context::new();
+    let instances = ws.app.vrrp_mgr.list_instances().await.unwrap_or_default();
+    let status = ws.app.vrrp_mgr.get_status().await.ok();
+    ctx.insert("page", "vrrp");
+    ctx.insert("page_title", "VRRP");
+    ctx.insert("instances", &instances);
+    ctx.insert("vrrp_status", &status);
+    render(&ws.tmpl, "vrrp.html", &ctx)
 }

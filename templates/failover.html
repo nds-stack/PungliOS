@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
+  <div class="stat-card">
+    <p class="text-gray-400 text-sm">Status</p>
+    {% if failover_status.active_uplink %}
+    <p class="text-xl font-bold mt-2 text-green-400">{{ failover_status.active_uplink }}</p>
+    {% else %}
+    <p class="text-xl font-bold mt-2 text-yellow-400">Standby</p>
+    {% endif %}
+    <p class="text-xs text-gray-500 mt-1">Active uplink</p>
+  </div>
+  <div class="stat-card">
+    <p class="text-gray-400 text-sm">Uplinks</p>
+    <p class="text-3xl font-bold mt-2">{{ failover_status.connected_uplinks | default(value=0) }} / {{ failover_status.total_uplinks | default(value=0) }}</p>
+    <p class="text-xs text-gray-500 mt-1">Connected / Total</p>
+  </div>
+  <div class="stat-card">
+    <p class="text-gray-400 text-sm">Last Failover</p>
+    <p class="text-xl font-bold mt-2">{% if failover_status.last_failover_at %}{{ failover_status.uptime_secs | default(value=0) }}s ago{% else %}—{% endif %}</p>
+    <p class="text-xs text-gray-500 mt-1">Uptime: {{ failover_status.uptime_secs | default(value=0) }}s</p>
+  </div>
+</div>
+
+<div class="flex items-center justify-between mb-5">
+  <p class="text-gray-400 text-sm">{{ uplinks | length }} uplink(s)</p>
+  <div class="flex gap-2">
+    <button @click="fetch('/api/v1/failover/trigger',{method:'POST'}).then(r=>{if(r.ok)location.reload()})" class="btn bg-yellow-600 hover:bg-yellow-700">Trigger Failover</button>
+    <div x-data="{ open: false }">
+      <button @click="open = true" class="btn btn-primary">+ Add Uplink</button>
+      <div x-show="open" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+        <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700" @click.stop>
+          <h3 class="text-lg font-semibold mb-4">New Uplink</h3>
+          <form @submit.prevent="fetch('/api/v1/failover/uplinks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$event.target.name.value,interface:$event.target.iface.value,isp_name:$event.target.isp.value,priority:parseInt($event.target.priority.value)||10,enabled:$event.target.enabled.checked,connected:$event.target.connected.checked})}).then(r=>{if(r.ok)location.reload()})" class="space-y-3">
+            <input name="name" placeholder="Uplink name (e.g. isp-a)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
+            <input name="iface" placeholder="Interface (e.g. ppp0)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
+            <input name="isp" placeholder="ISP name" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
+            <input name="priority" type="number" placeholder="Priority (lower = preferred)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+            <label class="flex items-center gap-2 text-sm"><input name="enabled" type="checkbox" checked class="rounded"> Enabled</label>
+            <label class="flex items-center gap-2 text-sm"><input name="connected" type="checkbox" checked class="rounded"> Connected</label>
+            <button type="submit" class="btn btn-primary w-full">Add Uplink</button>
+          </form>
+          <button @click="open = false" class="text-gray-400 text-sm mt-3">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="bg-gray-700/50 text-gray-400 uppercase text-xs tracking-wide">
+        <th class="text-left px-4 py-3">Name</th>
+        <th class="text-left px-4 py-3">Interface</th>
+        <th class="text-left px-4 py-3">ISP</th>
+        <th class="text-left px-4 py-3">Priority</th>
+        <th class="text-left px-4 py-3">Status</th>
+        <th class="text-left px-4 py-3">Failovers</th>
+        <th class="text-left px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in uplinks %}
+      <tr class="border-t border-gray-700 hover:bg-gray-700/30">
+        <td class="px-4 py-3 font-medium">{{ u.name }}</td>
+        <td class="px-4 py-3 font-mono text-xs">{{ u.interface }}</td>
+        <td class="px-4 py-3">{{ u.isp_name }}</td>
+        <td class="px-4 py-3">{{ u.priority }}</td>
+        <td class="px-4 py-3">
+          {% if u.connected %}
+          <span class="text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full text-xs">CONNECTED</span>
+          {% else %}
+          <span class="text-red-400 bg-red-400/10 px-2 py-0.5 rounded-full text-xs">DOWN</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3">{{ u.failover_count }}</td>
+        <td class="px-4 py-3">
+          <button @click="if(confirm('Remove {{ u.name }}?')){fetch('/api/v1/failover/uplinks/{{ u.name }}',{method:'DELETE'}).then(r=>{if(r.ok)location.reload()})}" class="btn btn-sm btn-danger">Remove</button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">No uplinks — add one to enable failover</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

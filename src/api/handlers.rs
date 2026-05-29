@@ -3,7 +3,7 @@
 use crate::api::{AppState, err, json_bool, json_str_array, json_u64, ok};
 use crate::traits::NetlinkNat;
 use crate::wireguard;
-use crate::{billing, routing};
+use crate::{billing, bpf_qos, pppoe, routing, tenancy, vrrp};
 use axum::{
     Json,
     extract::{Path, State},
@@ -244,6 +244,102 @@ pub(crate) async fn add_route(
     }
 }
 
+// ─── BPF QoS ─────────────────────────────────────────
+
+pub(crate) async fn list_bpf_qdiscs(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.bpf_qos_mgr.list_qdiscs().await {
+        Ok(qdiscs) => Json(serde_json::json!(qdiscs)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn attach_bpf_qdisc(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let kind = match body["kind"].as_str() {
+        Some("fq") => bpf_qos::BpfQdiscKind::Fq,
+        Some("fq_codel") => bpf_qos::BpfQdiscKind::FqCodel,
+        Some("cake") => bpf_qos::BpfQdiscKind::Cake,
+        _ => bpf_qos::BpfQdiscKind::FqCodel,
+    };
+    let cfg = bpf_qos::BpfQdiscConfig {
+        iface: body["iface"].as_str().unwrap_or("").to_string(),
+        kind,
+        rate: json_u64(&body["rate"]).unwrap_or(1_000_000_000),
+        burst: json_u64(&body["burst"]),
+        latency: json_u64(&body["latency"]),
+    };
+    match s.bpf_qos_mgr.attach_qdisc(&cfg).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn detach_bpf_qdisc(
+    State(s): State<AppState>,
+    Path(iface): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.bpf_qos_mgr.detach_qdisc(&iface).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn get_bpf_qos_status(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.bpf_qos_mgr.get_status().await {
+        Ok(status) => Json(serde_json::json!(status)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+// ─── Plugins ─────────────────────────────────────────
+
+pub(crate) async fn list_plugins(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.plugin_mgr.registry.list_plugins()))
+}
+
+pub(crate) async fn get_plugin_status(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.plugin_mgr.registry.get_status()))
+}
+
+// ─── Tenants ─────────────────────────────────────────
+
+pub(crate) async fn list_tenants(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.tenancy_mgr.list_tenants().await {
+        Ok(tenants) => Json(serde_json::json!(tenants)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn create_tenant(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let tenant = tenancy::Tenant {
+        id: body["id"].as_str().unwrap_or("").to_string(),
+        name: body["name"].as_str().unwrap_or("").to_string(),
+        domain: body["domain"].as_str().map(|s| s.to_string()),
+        enabled: json_bool(&body["enabled"]).unwrap_or(true),
+        max_users: json_u64(&body["max_users"]).map(|v| v as u32),
+        max_bandwidth: json_u64(&body["max_bandwidth"]),
+    };
+    match s.tenancy_mgr.create_tenant(&tenant).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn delete_tenant(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.tenancy_mgr.delete_tenant(&id).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
 pub(crate) async fn delete_route(
     State(s): State<AppState>,
     Json(body): Json<serde_json::Value>,
@@ -322,6 +418,7 @@ pub(crate) async fn delete_class(
 
 // ─── Conntrack ─────────────────────────────────────────
 
+#[allow(clippy::await_holding_lock)]
 pub(crate) async fn get_conntrack_stats(State(s): State<AppState>) -> Json<serde_json::Value> {
     let ct = s.ct_mgr.lock().await;
     let count = ct.count().await.unwrap_or(0);
@@ -333,6 +430,7 @@ pub(crate) async fn get_conntrack_stats(State(s): State<AppState>) -> Json<serde
     }))
 }
 
+#[allow(clippy::await_holding_lock)]
 pub(crate) async fn set_conntrack_max(
     State(s): State<AppState>,
     Json(body): Json<serde_json::Value>,
@@ -345,6 +443,7 @@ pub(crate) async fn set_conntrack_max(
     }
 }
 
+#[allow(clippy::await_holding_lock)]
 pub(crate) async fn get_top_talkers(State(s): State<AppState>) -> Json<serde_json::Value> {
     let ct = s.ct_mgr.lock().await;
     match ct.top_talkers(20).await {
@@ -353,6 +452,7 @@ pub(crate) async fn get_top_talkers(State(s): State<AppState>) -> Json<serde_jso
     }
 }
 
+#[allow(clippy::await_holding_lock)]
 pub(crate) async fn get_protocol_distribution(
     State(s): State<AppState>,
 ) -> Json<serde_json::Value> {
@@ -383,6 +483,7 @@ pub(crate) async fn get_bandwidth(State(s): State<AppState>) -> Json<serde_json:
     Json(serde_json::json!({"interfaces": ifaces}))
 }
 
+#[allow(clippy::await_holding_lock)]
 pub(crate) async fn get_system_stats(State(s): State<AppState>) -> Json<serde_json::Value> {
     let (cpu, mem_total, mem_used, uptime_secs) = crate::api::monitoring::get_system_info();
     let ct = s.ct_mgr.lock().await;
@@ -821,6 +922,105 @@ pub(crate) async fn mark_invoice_paid(
 pub(crate) async fn get_billing_summary(State(s): State<AppState>) -> Json<serde_json::Value> {
     match s.billing_mgr.get_billing_summary().await {
         Ok(summary) => Json(serde_json::json!(summary)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+// ─── PPPoE Failover ──────────────────────────────────
+
+pub(crate) async fn list_uplinks(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.failover_mgr.list_uplinks().await {
+        Ok(uplinks) => Json(serde_json::json!(uplinks)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn add_uplink(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let uplink = pppoe::failover::PppUplink {
+        name: body["name"].as_str().unwrap_or("").to_string(),
+        interface: body["interface"].as_str().unwrap_or("").to_string(),
+        isp_name: body["isp_name"].as_str().unwrap_or("").to_string(),
+        priority: json_u64(&body["priority"]).unwrap_or(10) as u8,
+        enabled: json_bool(&body["enabled"]).unwrap_or(true),
+        connected: json_bool(&body["connected"]).unwrap_or(true),
+        failover_count: 0,
+    };
+    match s.failover_mgr.add_uplink(&uplink).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn remove_uplink(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.failover_mgr.remove_uplink(&name).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn get_failover_status(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.failover_mgr.get_status().await {
+        Ok(status) => Json(serde_json::json!(status)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn trigger_failover(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.failover_mgr.trigger_failover().await {
+        Ok(uplink) => Json(serde_json::json!({"active_uplink": uplink})),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+// ─── VRRP ────────────────────────────────────────────
+
+pub(crate) async fn list_vrrp_instances(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.vrrp_mgr.list_instances().await {
+        Ok(instances) => Json(serde_json::json!(instances)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn create_vrrp_instance(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let inst = vrrp::VrrpInstance {
+        vrid: json_u64(&body["vrid"]).unwrap_or(1) as u8,
+        name: body["name"].as_str().unwrap_or("").to_string(),
+        interface: body["interface"].as_str().unwrap_or("").to_string(),
+        priority: json_u64(&body["priority"]).unwrap_or(100) as u8,
+        virtual_ip: body["virtual_ip"].as_str().unwrap_or("").to_string(),
+        virtual_prefix: json_u64(&body["virtual_prefix"]).unwrap_or(24) as u8,
+        advert_interval: json_u64(&body["advert_interval"]).unwrap_or(1) as u8,
+        preempt: json_bool(&body["preempt"]).unwrap_or(true),
+        enabled: json_bool(&body["enabled"]).unwrap_or(true),
+    };
+    match s.vrrp_mgr.create_instance(&inst).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn delete_vrrp_instance(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.vrrp_mgr.delete_instance(&name).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn get_vrrp_status(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.vrrp_mgr.get_status().await {
+        Ok(status) => Json(serde_json::json!(status)),
         Err(e) => err(e.to_string()),
     }
 }
