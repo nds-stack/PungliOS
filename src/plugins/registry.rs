@@ -1,7 +1,8 @@
 use super::types::*;
 use anyhow::{Result, bail};
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 type PluginEntry = (Box<dyn Plugin>, PluginState);
 
@@ -33,10 +34,9 @@ impl PluginRegistry {
         }
     }
 
-    #[allow(clippy::await_holding_lock)]
     pub async fn register(&self, plugin: Box<dyn Plugin>) -> Result<()> {
         let name = plugin.name().to_string();
-        let mut plugins = self.plugins.write().expect("lock poisoned");
+        let mut plugins = self.plugins.write().await;
         if plugins.contains_key(&name) {
             bail!("plugin '{name}' already registered");
         }
@@ -45,9 +45,8 @@ impl PluginRegistry {
         Ok(())
     }
 
-    #[allow(clippy::await_holding_lock)]
     pub async fn enable(&self, name: &str) -> Result<()> {
-        let mut plugins = self.plugins.write().expect("lock poisoned");
+        let mut plugins = self.plugins.write().await;
         let (plugin, state) = plugins
             .get_mut(name)
             .ok_or_else(|| anyhow::anyhow!("plugin '{name}' not found"))?;
@@ -56,9 +55,8 @@ impl PluginRegistry {
         Ok(())
     }
 
-    #[allow(clippy::await_holding_lock)]
     pub async fn disable(&self, name: &str) -> Result<()> {
-        let mut plugins = self.plugins.write().expect("lock poisoned");
+        let mut plugins = self.plugins.write().await;
         let (plugin, state) = plugins
             .get_mut(name)
             .ok_or_else(|| anyhow::anyhow!("plugin '{name}' not found"))?;
@@ -68,7 +66,7 @@ impl PluginRegistry {
     }
 
     pub fn list_plugins(&self) -> Vec<PluginInfo> {
-        let plugins = self.plugins.read().expect("lock poisoned");
+        let plugins = self.plugins.blocking_read();
         plugins
             .values()
             .map(|(p, state)| PluginInfo {
@@ -81,7 +79,7 @@ impl PluginRegistry {
     }
 
     pub fn get_status(&self) -> PluginManagerStatus {
-        let plugins = self.plugins.read().expect("lock poisoned");
+        let plugins = self.plugins.blocking_read();
         let mut enabled = 0;
         let mut errored = 0;
         for (_, (_, state)) in plugins.iter() {
