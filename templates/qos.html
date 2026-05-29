@@ -1,18 +1,26 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="flex items-center justify-between mb-5">
-  <p class="text-gray-400 text-sm">{{ classes | length }} class(es)</p>
+  <p class="text-gray-400 text-sm">{{ interfaces | length }} interface(s)</p>
   <div x-data="{ open: false }">
-    <button @click="open = true" class="btn btn-primary">+ Add Class</button>
-    <div x-show="open" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" @click.away="open = false">
+    <button @click="open = true" class="btn btn-primary">+ Attach Qdisc</button>
+    <div x-show="open" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
       <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700" @click.stop>
-        <h3 class="text-lg font-semibold mb-4">New QoS Class</h3>
-        <form hx-post="/api/v1/qos/classes" hx-ext="json-enc" hx-target="body" hx-swap="innerHTML" class="space-y-3">
-          <input name="iface" placeholder="Interface" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
-          <input name="classid" placeholder="Class ID (e.g. 1:10)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
-          <input name="rate" placeholder="Rate (e.g. 10mbit)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
-          <input name="ceil" placeholder="Ceil (e.g. 20mbit)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
-          <button type="submit" class="btn btn-primary w-full">Create</button>
+        <h3 class="text-lg font-semibold mb-4">Attach Qdisc</h3>
+        <form @submit.prevent="fetch('/api/v1/qos/attach',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({iface:$event.target.iface.value,kind:$event.target.kind.value,rate:parseInt($event.target.rate.value)*1000000||100000000})}).then(r=>{if(r.ok)location.reload()})" class="space-y-3">
+          <select name="iface" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
+            <option value="">Select interface</option>
+            {% for iface in interfaces %}
+            <option value="{{ iface.name }}">{{ iface.name }}</option>
+            {% endfor %}
+          </select>
+          <select name="kind" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+            <option value="htb">HTB</option>
+            <option value="fq_codel">fq_codel</option>
+            <option value="cake">CAKE</option>
+          </select>
+          <input name="rate" type="number" placeholder="Rate (Mbps)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+          <button type="submit" class="btn btn-primary w-full">Attach</button>
         </form>
         <button @click="open = false" class="text-gray-400 text-sm mt-3">Cancel</button>
       </div>
@@ -20,34 +28,46 @@
   </div>
 </div>
 
-<div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
-  <table class="w-full text-sm">
-    <thead>
-      <tr class="bg-gray-700/50 text-gray-400 uppercase text-xs tracking-wide">
-        <th class="text-left px-4 py-3">Interface</th>
-        <th class="text-left px-4 py-3">ClassID</th>
-        <th class="text-left px-4 py-3">Rate</th>
-        <th class="text-left px-4 py-3">Ceil</th>
-        <th class="text-left px-4 py-3">Priority</th>
-        <th class="text-left px-4 py-3"></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for c in classes %}
-      <tr class="border-t border-gray-700 hover:bg-gray-700/30">
-        <td class="px-4 py-3">{{ c.iface }}</td>
-        <td class="px-4 py-3 font-mono text-xs">{{ c.classid }}</td>
-        <td class="px-4 py-3">{{ c.rate }}</td>
-        <td class="px-4 py-3">{{ c.ceil }}</td>
-        <td class="px-4 py-3">{{ c.priority }}</td>
-        <td class="px-4 py-3">
-          <button hx-delete="/api/v1/qos/classes/{{ c.classid }}" hx-target="body" hx-swap="innerHTML" hx-confirm="Delete class {{ c.classid }}?" class="btn btn-sm btn-danger">Delete</button>
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">No QoS classes</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="space-y-4">
+  {% for iface in interfaces %}
+  <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+    <div class="px-5 py-4 bg-gray-700/30 flex items-center justify-between">
+      <div>
+        <h3 class="font-semibold">{{ iface.name }}</h3>
+        <p class="text-xs text-gray-400 mt-0.5">{{ iface.addresses | join(sep=", ") }}</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="text-xs text-gray-400">MTU {{ iface.mtu }}</span>
+        {% if iface.up %}
+        <span class="text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full text-xs">UP</span>
+        {% else %}
+        <span class="text-gray-500 bg-gray-700 px-2 py-0.5 rounded-full text-xs">DOWN</span>
+        {% endif %}
+        <div x-data="{ classOpen: false }">
+          <button @click="classOpen = true" class="btn btn-sm btn-primary">+ Add Class</button>
+          <div x-show="classOpen" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+            <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700" @click.stop>
+              <h3 class="text-lg font-semibold mb-4">Add Class on {{ iface.name }}</h3>
+              <form @submit.prevent="fetch('/api/v1/qos/classes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({iface:'{{ iface.name }}',classid:parseInt($event.target.classid.value,16)||0x1001,rate:parseInt($event.target.rate.value)*1000000||10000000,ceil:parseInt($event.target.ceil.value)*1000000||20000000,priority:parseInt($event.target.priority.value)||3})}).then(r=>{if(r.ok)location.reload()})" class="space-y-3">
+                <input name="classid" placeholder="ClassID (hex, e.g. 1:10)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+                <input name="rate" type="number" placeholder="Rate (Mbps)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+                <input name="ceil" type="number" placeholder="Ceil (Mbps)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+                <input name="priority" type="number" placeholder="Priority (0-7, default 3)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+                <button type="submit" class="btn btn-primary w-full">Add Class</button>
+              </form>
+              <button @click="classOpen = false" class="text-gray-400 text-sm mt-3">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="p-5 text-center text-sm text-gray-500">
+      <p>QoS classes are managed per-interface. Attach a qdisc first, then add classes.</p>
+      <p class="mt-1 text-xs text-gray-600">Use the API endpoints: <code class="text-indigo-400">/api/v1/qos/attach</code> and <code class="text-indigo-400">/api/v1/qos/classes</code></p>
+    </div>
+  </div>
+  {% else %}
+  <div class="text-center text-gray-500 py-12">No interfaces — create one first</div>
+  {% endfor %}
 </div>
 {% endblock %}

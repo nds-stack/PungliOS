@@ -1,13 +1,34 @@
 {% extends "base.html" %}
 {% block content %}
+<div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
+  <div class="stat-card">
+    <p class="text-gray-400 text-sm">Total Users</p>
+    <p class="text-3xl font-bold mt-2">{{ user_count }}</p>
+    <p class="text-xs text-gray-500 mt-1">Registered</p>
+  </div>
+  <div class="stat-card">
+    <p class="text-gray-400 text-sm">Active</p>
+    <p class="text-3xl font-bold mt-2 text-green-400">{{ enabled_count }}</p>
+    <p class="text-xs text-gray-500 mt-1">Enabled accounts</p>
+  </div>
+  <div class="stat-card">
+    <p class="text-gray-400 text-sm">Packages</p>
+    <p class="text-3xl font-bold mt-2">{{ packages | length }}</p>
+    <p class="text-xs text-gray-500 mt-1">Available</p>
+  </div>
+</div>
+
 <div class="flex items-center justify-between mb-5">
-  <p class="text-gray-400 text-sm">{{ users | length }} user(s)</p>
+  <div class="flex items-center gap-3">
+    <p class="text-gray-400 text-sm">{{ users | length }} user(s)</p>
+    <input id="search-input" type="text" placeholder="Search username..." class="bg-gray-700 rounded-lg px-3 py-1.5 text-sm border border-gray-600 w-48" onkeyup="filterUsers()">
+  </div>
   <div x-data="{ open: false }">
     <button @click="open = true" class="btn btn-primary">+ Add User</button>
-    <div x-show="open" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" @click.away="open = false">
+    <div x-show="open" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
       <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700" @click.stop>
         <h3 class="text-lg font-semibold mb-4">New User</h3>
-        <form hx-post="/api/v1/users" hx-ext="json-enc" hx-target="body" hx-swap="innerHTML" class="space-y-3">
+        <form @submit.prevent="fetch('/api/v1/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:$event.target.username.value,password:$event.target.password.value,package_name:$event.target.package.value||null,notes:$event.target.notes.value,enabled:$event.target.enabled.checked})}).then(r=>{if(r.ok)location.reload()})" class="space-y-3">
           <input name="username" placeholder="Username" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
           <input name="password" type="password" placeholder="Password" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600" required>
           <input name="notes" placeholder="Notes" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
@@ -17,7 +38,7 @@
             <option value="{{ pkg.name }}">{{ pkg.name }}</option>
             {% endfor %}
           </select>
-          <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="enabled" checked class="rounded"> Enabled</label>
+          <label class="flex items-center gap-2 text-sm"><input name="enabled" type="checkbox" checked class="rounded"> Enabled</label>
           <button type="submit" class="btn btn-primary w-full">Create</button>
         </form>
         <button @click="open = false" class="text-gray-400 text-sm mt-3">Cancel</button>
@@ -27,55 +48,71 @@
 </div>
 
 <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
-  <table class="w-full text-sm">
+  <table class="w-full text-sm" id="users-table">
     <thead>
       <tr class="bg-gray-700/50 text-gray-400 uppercase text-xs tracking-wide">
         <th class="text-left px-4 py-3">Username</th>
         <th class="text-left px-4 py-3">Package</th>
         <th class="text-left px-4 py-3">IP Address</th>
         <th class="text-left px-4 py-3">MAC</th>
+        <th class="text-left px-4 py-3">Notes</th>
         <th class="text-left px-4 py-3">Status</th>
         <th class="text-left px-4 py-3">Actions</th>
       </tr>
     </thead>
     <tbody>
       {% for u in users %}
-      <tr class="border-t border-gray-700 hover:bg-gray-700/30">
+      <tr class="border-t border-gray-700 hover:bg-gray-700/30 user-row" data-username="{{ u.username | lower }}">
         <td class="px-4 py-3 font-medium">{{ u.username }}</td>
         <td class="px-4 py-3">{{ u.package_name | default(value="-") }}</td>
         <td class="px-4 py-3 font-mono text-xs">{{ u.ip_address | default(value="-") }}</td>
         <td class="px-4 py-3 font-mono text-xs">{{ u.mac_address | default(value="-") }}</td>
+        <td class="px-4 py-3 text-gray-400 max-w-[120px] truncate">{{ u.notes | default(value="-") }}</td>
         <td class="px-4 py-3">
-          {% if u.enabled %}
-          <span class="text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full text-xs">ACTIVE</span>
-          {% else %}
-          <span class="text-red-400 bg-red-400/10 px-2 py-0.5 rounded-full text-xs">DISABLED</span>
-          {% endif %}
+          <button @click="fetch('/api/v1/users/{{ u.username }}',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:{{ u.enabled | json_encode | safe }}})}).then(r=>{if(r.ok)location.reload()})" class="{% if u.enabled %}text-green-400 bg-green-400/10{% else %}text-gray-500 bg-gray-700{% endif %} px-2 py-0.5 rounded-full text-xs cursor-pointer hover:opacity-80">
+            {% if u.enabled %}ACTIVE{% else %}DISABLED{% endif %}
+          </button>
         </td>
         <td class="px-4 py-3">
           <div class="flex gap-1">
             <div x-data="{ editOpen: false }">
               <button @click="editOpen = true" class="btn btn-sm btn-primary">Edit</button>
-              <div x-show="editOpen" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" @click.away="editOpen = false">
+              <div x-show="editOpen" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
                 <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700" @click.stop>
-                  <h3 class="text-lg font-semibold mb-4">Edit User: {{ u.username }}</h3>
-                  <form hx-put="/api/v1/users/{{ u.username }}" hx-target="body" hx-swap="innerHTML" hx-ext="json-enc" class="space-y-3">
+                  <h3 class="text-lg font-semibold mb-4">Edit: {{ u.username }}</h3>
+                  <form @submit.prevent="fetch('/api/v1/users/{{ u.username }}',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:$event.target.password.value||null,package_name:$event.target.package.value||null,notes:$event.target.notes.value,enabled:$event.target.enabled.checked})}).then(r=>{if(r.ok)location.reload()})" class="space-y-3">
+                    <input name="password" type="password" placeholder="New password (leave empty)" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
                     <input name="notes" placeholder="Notes" value="{{ u.notes | default(value='') }}" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
-                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="enabled" {% if u.enabled %}checked{% endif %} class="rounded"> Enabled</label>
+                    <select name="package" class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-600">
+                      <option value="">No package</option>
+                      {% for pkg in packages %}
+                      <option value="{{ pkg.name }}" {% if u.package_name == pkg.name %}selected{% endif %}>{{ pkg.name }}</option>
+                    {% endfor %}
+                    </select>
+                    <label class="flex items-center gap-2 text-sm"><input name="enabled" type="checkbox" {% if u.enabled %}checked{% endif %} class="rounded"> Enabled</label>
                     <button type="submit" class="btn btn-primary w-full">Save</button>
                   </form>
                   <button @click="editOpen = false" class="text-gray-400 text-sm mt-3">Cancel</button>
                 </div>
               </div>
             </div>
-            <button hx-delete="/api/v1/users/{{ u.username }}" hx-target="body" hx-swap="innerHTML" hx-confirm="Delete user {{ u.username }}?" class="btn btn-sm btn-danger">Delete</button>
+            <button @click="if(confirm('Delete {{ u.username }}?')){fetch('/api/v1/users/{{ u.username }}',{method:'DELETE'}).then(r=>{if(r.ok)location.reload()})}" class="btn btn-sm btn-danger">Delete</button>
           </div>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">No users</td></tr>
+      <tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">No users</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+
+<script>
+function filterUsers() {
+  var q = document.getElementById('search-input').value.toLowerCase();
+  document.querySelectorAll('.user-row').forEach(function(row) {
+    row.style.display = row.getAttribute('data-username').includes(q) ? '' : 'none';
+  });
+}
+</script>
 {% endblock %}

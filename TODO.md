@@ -1,6 +1,6 @@
 # TODO.md — PungliOS Roadmap & Milestones
 
-> Status: 🟢 Phase 1 Complete | 🟢 Phase 2 Complete | 🟢 Phase 3.1-3.4 Done (3.5-3.8 TODO)
+> Status: 🟢 Phase 1 Complete | 🟢 Phase 2 Complete | 🟢 Phase 3 Complete | 🟡 Phase 4.1-4.2 Done (4.3-4.7 TODO)
 
 ---
 
@@ -59,7 +59,7 @@
 
 ---
 
-## Phase 3: Management + Monitoring
+## Phase 3: Management + Monitoring 🟢 COMPLETE
 
 **Target:** Web UI, REST API, real-time monitoring
 **Deadline:** TBD
@@ -70,10 +70,10 @@
 | 3.2 | Web UI dashboard (Leptos/Yew → Tera + HTMX) | Web UI | 🟢 WIP | P1 |
 | 3.3 | Real-time bandwidth monitoring (SSE stream) | Monitoring | 🟢 DONE | P1 |
 | 3.4 | CPU & conntrack monitoring (SSE stream) | Monitoring | 🟢 DONE | P1 |
-| 3.5 | Connection tracking analyzer | Monitoring | 🔴 TODO | P2 |
-| 3.6 | Billing integration API | Billing | 🔴 TODO | P2 |
-| 3.7 | User management dashboard | Web UI | 🔴 TODO | P2 |
-| 3.8 | QoS config UI | Web UI | 🔴 TODO | P2 |
+| 3.5 | Connection tracking analyzer | Monitoring | 🟢 DONE | P2 |
+| 3.6 | Billing integration API | Billing | 🟢 DONE | P2 |
+| 3.7 | User management dashboard | Web UI | 🟢 DONE | P2 |
+| 3.8 | QoS config UI | Web UI | 🟢 DONE | P2 |
 
 **Success Metrics:**
 - [ ] REST API response <50ms

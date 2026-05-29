@@ -211,17 +211,18 @@ async fn routes_page(State(ws): State<WebState>) -> Html<String> {
 
 async fn qos_page(State(ws): State<WebState>) -> Html<String> {
     let mut ctx = Context::new();
+    let ifaces = ws.app.iface_mgr.list().await.unwrap_or_default();
     ctx.insert("page", "qos");
     ctx.insert("page_title", "QoS");
-    ctx.insert("classes", &[] as &[serde_json::Value]);
+    interface_vec(&mut ctx, &ifaces);
     render(&ws.tmpl, "qos.html", &ctx)
 }
 
 async fn users_page(State(ws): State<WebState>) -> Html<String> {
     let mut ctx = Context::new();
-    let users = ws.app.user_mgr.list_users().await.unwrap_or_default();
+    let all_users = ws.app.user_mgr.list_users().await.unwrap_or_default();
     let packages = ws.app.user_mgr.list_packages().await.unwrap_or_default();
-    let user_items: Vec<serde_json::Value> = users
+    let user_items: Vec<serde_json::Value> = all_users
         .iter()
         .map(|u| {
             serde_json::json!({
@@ -238,6 +239,11 @@ async fn users_page(State(ws): State<WebState>) -> Html<String> {
     ctx.insert("page_title", "Users");
     ctx.insert("users", &user_items);
     ctx.insert("packages", &packages);
+    ctx.insert("user_count", &all_users.len());
+    ctx.insert(
+        "enabled_count",
+        &all_users.iter().filter(|u| u.enabled).count(),
+    );
     render(&ws.tmpl, "users.html", &ctx)
 }
 
