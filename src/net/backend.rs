@@ -244,7 +244,11 @@ impl NetlinkConntrack for RealBackend {
                 .and_then(|s| s.parse::<u16>().ok())
                 .unwrap_or(0);
             entries.push(ConntrackEntry {
-                protocol: parts.get(2).unwrap_or(&"?").to_string(),
+                protocol: match parts.get(2).unwrap_or(&"0").as_str() {
+                    "tcp" => 6,
+                    "udp" => 17,
+                    _ => 0,
+                },
                 src: std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
                 dst: std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
                 sport: src_port,
