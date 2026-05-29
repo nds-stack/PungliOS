@@ -292,6 +292,7 @@ mod tests {
         let backend = MockBackend::new();
         let config = InterfaceConfig {
             name: "eth0".into(),
+            kind: None,
             mtu: None,
             addresses: vec![],
             vlan_id: None,

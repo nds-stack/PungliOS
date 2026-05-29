@@ -40,6 +40,7 @@ pub(crate) async fn create_interface(
     }
     let config = crate::traits::InterfaceConfig {
         name,
+        kind: None,
         mtu: body["mtu"].as_u64().map(|v| v as u16),
         addresses: vec![],
         vlan_id: body["vlan_id"].as_u64().map(|v| v as u16),

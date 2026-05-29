@@ -92,6 +92,7 @@ impl<T: NetlinkIfaces> InterfaceManager<T> {
         let name = format!("{parent}.{vlan_id}");
         let config = InterfaceConfig {
             name,
+            kind: None,
             mtu: None,
             addresses: vec![],
             vlan_id: Some(vlan_id),
@@ -106,6 +107,7 @@ impl<T: NetlinkIfaces> InterfaceManager<T> {
         }
         let config = InterfaceConfig {
             name: iface.to_string(),
+            kind: None,
             mtu: None,
             addresses: vec![],
             vlan_id: None,
@@ -120,6 +122,7 @@ impl<T: NetlinkIfaces> InterfaceManager<T> {
         }
         let config = InterfaceConfig {
             name: iface.to_string(),
+            kind: None,
             mtu: None,
             addresses: vec![],
             vlan_id: None,
@@ -150,6 +153,7 @@ mod tests {
         let mgr = setup();
         let config = InterfaceConfig {
             name: "eth0".into(),
+            kind: None,
             mtu: Some(1500),
             addresses: vec![],
             vlan_id: None,
@@ -175,6 +179,7 @@ mod tests {
         let mgr = setup();
         let config = InterfaceConfig {
             name: "eth0".into(),
+            kind: None,
             mtu: None,
             addresses: vec![],
             vlan_id: None,
@@ -190,6 +195,7 @@ mod tests {
         let mgr = setup();
         let config = InterfaceConfig {
             name: "eth0".into(),
+            kind: None,
             mtu: None,
             addresses: vec![],
             vlan_id: None,
@@ -209,6 +215,7 @@ mod tests {
         let mgr = setup();
         let config = InterfaceConfig {
             name: "eth0".into(),
+            kind: None,
             mtu: None,
             addresses: vec![],
             vlan_id: None,
@@ -225,6 +232,7 @@ mod tests {
         let mgr = setup();
         let config = InterfaceConfig {
             name: "eth0".into(),
+            kind: None,
             mtu: None,
             addresses: vec![],
             vlan_id: None,
@@ -305,6 +313,7 @@ mod tests {
         let mgr = setup();
         let config = InterfaceConfig {
             name: "eth1".into(),
+            kind: None,
             mtu: Some(9000),
             addresses: vec!["10.0.0.1".parse().unwrap()],
             vlan_id: None,
@@ -321,6 +330,7 @@ mod tests {
         let mgr = setup();
         let config = InterfaceConfig {
             name: "eth0".into(),
+            kind: None,
             mtu: None,
             addresses: vec![],
             vlan_id: None,

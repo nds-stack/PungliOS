@@ -24,6 +24,7 @@ async fn test_full_network_setup() {
     let wan = iface_mgr
         .create(&InterfaceConfig {
             name: "wan".into(),
+            kind: None,
             mtu: Some(1500),
             addresses: vec!["203.0.113.1".parse().unwrap()],
             vlan_id: None,
@@ -119,6 +120,7 @@ async fn test_interface_lifecycle() {
 
     let config = InterfaceConfig {
         name: "test0".into(),
+        kind: None,
         mtu: None,
         addresses: vec![],
         vlan_id: None,

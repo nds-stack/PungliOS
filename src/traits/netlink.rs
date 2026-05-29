@@ -16,10 +16,19 @@ pub struct Interface {
     pub up: bool,
 }
 
+/// Type of network interface to create.
+#[derive(Debug, Clone, Serialize)]
+pub enum InterfaceKind {
+    Dummy,
+    Bridge,
+    Vlan { parent: String, vlan_id: u16 },
+}
+
 /// Parameters for creating a new network interface.
 #[derive(Debug, Clone)]
 pub struct InterfaceConfig {
     pub name: String,
+    pub kind: Option<InterfaceKind>,
     pub mtu: Option<u16>,
     pub addresses: Vec<IpAddr>,
     pub vlan_id: Option<u16>,

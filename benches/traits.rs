@@ -14,6 +14,7 @@ fn bench_mock_backend(c: &mut Criterion) {
                 let backend = MockBackend::new();
                 let config = InterfaceConfig {
                     name: "bench0".into(),
+                    kind: None,
                     mtu: None,
                     addresses: vec![],
                     vlan_id: None,
