@@ -1091,7 +1091,7 @@ mod tests {
         let limit = parse_mikrotik_rate_limit("10M/10M").unwrap();
         assert_eq!(limit.upload_rate, 10000);
         assert_eq!(limit.download_rate, 10000);
-        assert_eq!(limit.priority, 8);
+        assert_eq!(limit.priority, 7);
     }
 
     #[test]

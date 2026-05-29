@@ -111,7 +111,7 @@ impl PppFrame {
             buf.extend_from_slice(&total_len.to_be_bytes());
             for opt in &self.options {
                 buf.push(opt.opt_type);
-                buf.push(opt.value.len() as u8);
+                buf.push((opt.value.len() + 2) as u8);
                 buf.extend_from_slice(&opt.value);
             }
             buf.extend_from_slice(&self.data);
