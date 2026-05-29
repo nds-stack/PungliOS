@@ -38,6 +38,8 @@ pub const ATTR_ACCT_SESSION_TIME: u8 = 46;
 pub const ATTR_ACCT_INPUT_PACKETS: u8 = 47;
 pub const ATTR_ACCT_OUTPUT_PACKETS: u8 = 48;
 pub const ATTR_ACCT_TERMINATE_CAUSE: u8 = 49;
+pub const ATTR_ACCT_INPUT_GIGAWORDS: u8 = 52;
+pub const ATTR_ACCT_OUTPUT_GIGAWORDS: u8 = 53;
 pub const ATTR_CHAP_CHALLENGE: u8 = 60;
 pub const ATTR_NAS_PORT_TYPE: u8 = 61;
 pub const ATTR_TUNNEL_TYPE: u8 = 64;
@@ -505,6 +507,18 @@ impl<B: RadiusBackend> RadiusClient<B> {
 
         let input_bytes = (input_octets & 0xFFFFFFFF) as u32;
         let output_bytes = (output_octets & 0xFFFFFFFF) as u32;
+        if input_octets > 0xFFFFFFFF {
+            req.attributes.push(RadiusAttribute::new_u32(
+                ATTR_ACCT_INPUT_GIGAWORDS,
+                (input_octets >> 32) as u32,
+            ));
+        }
+        if output_octets > 0xFFFFFFFF {
+            req.attributes.push(RadiusAttribute::new_u32(
+                ATTR_ACCT_OUTPUT_GIGAWORDS,
+                (output_octets >> 32) as u32,
+            ));
+        }
         req.attributes.push(RadiusAttribute::new_u32(
             ATTR_ACCT_INPUT_OCTETS,
             input_bytes,

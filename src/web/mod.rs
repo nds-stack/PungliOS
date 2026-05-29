@@ -17,7 +17,10 @@ fn setup_tera() -> Tera {
     } else {
         "templates/**/*.html".to_string()
     };
-    Tera::new(&template_path).expect("failed to load templates")
+    Tera::new(&template_path).unwrap_or_else(|e| {
+        tracing::error!("failed to load templates: {e}");
+        std::process::exit(1);
+    })
 }
 
 #[derive(Clone)]
@@ -54,10 +57,15 @@ pub fn router(state: AppState) -> Router {
 }
 
 fn render(tmpl: &Tera, name: &str, ctx: &Context) -> Html<String> {
-    Html(
-        tmpl.render(name, ctx)
-            .unwrap_or_else(|e| format!("<h1>Template error</h1><pre>{}</pre>", e)),
-    )
+    match tmpl.render(name, ctx) {
+        Ok(html) => Html(html),
+        Err(e) => {
+            tracing::error!("template '{name}' error: {e}");
+            Html(format!(
+                "<h1>500 Internal Error</h1><pre>template error: {e}</pre>"
+            ))
+        }
+    }
 }
 
 fn mac_str(mac: &[u8; 6]) -> String {

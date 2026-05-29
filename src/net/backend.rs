@@ -52,7 +52,15 @@ fn link_to_interface(link: &nlink::netlink::messages::LinkMessage) -> Interface 
         index: link.ifindex(),
         mac,
         addresses: vec![],
-        mtu: link.mtu().unwrap_or(1500) as u16,
+        mtu: {
+            let v = link.mtu().unwrap_or(0) as u16;
+            if v == 0 {
+                tracing::warn!("no MTU reported for link, defaulting to 1500");
+                1500
+            } else {
+                v
+            }
+        },
         up: link.is_up(),
     }
 }
@@ -263,14 +271,25 @@ impl NetlinkConntrack for RealBackend {
     }
 
     async fn flush(&self) -> Result<()> {
-        std::fs::write("/proc/sys/net/netfilter/nf_conntrack_max", "0")?;
-        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        std::fs::write("/proc/sys/net/netfilter/nf_conntrack_max", "262144")?;
+        tokio::task::spawn_blocking(|| {
+            std::fs::write("/proc/sys/net/netfilter/nf_conntrack_max", "0")?;
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            std::fs::write("/proc/sys/net/netfilter/nf_conntrack_max", "262144")
+        })
+        .await
+        .map_err(|e| anyhow::anyhow!("flush task failed: {e}"))?
+        .map_err(|e| anyhow::anyhow!("flush failed: {e}"))?;
         Ok(())
     }
 
     async fn set_max(&self, max: u32) -> Result<()> {
-        std::fs::write("/proc/sys/net/netfilter/nf_conntrack_max", max.to_string())?;
+        let val = max.to_string();
+        tokio::task::spawn_blocking(move || {
+            std::fs::write("/proc/sys/net/netfilter/nf_conntrack_max", &val)
+        })
+        .await
+        .map_err(|e| anyhow::anyhow!("set_max task failed: {e}"))?
+        .map_err(|e| anyhow::anyhow!("set_max failed: {e}"))?;
         Ok(())
     }
 
@@ -339,11 +358,12 @@ impl NetlinkNat for RealBackend {
 
 #[cfg(feature = "real")]
 fn route_message_to_route(msg: &RouteMessage) -> PungliRoute {
+    let dst = msg.destination().copied().unwrap_or_else(|| {
+        tracing::warn!("route has no destination, using UNSPECIFIED");
+        IpAddr::V4(Ipv4Addr::UNSPECIFIED)
+    });
     PungliRoute {
-        destination: msg
-            .destination()
-            .copied()
-            .unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED)),
+        destination: dst,
         prefix: msg.dst_len(),
         nexthop: msg.gateway().copied(),
         iface: msg.oif().map(|_| "unknown".to_string()),

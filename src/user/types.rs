@@ -7,7 +7,10 @@ fn hash_password(plain: &str) -> String {
     Argon2::default()
         .hash_password(plain.as_bytes(), &salt)
         .map(|h| h.to_string())
-        .unwrap_or_else(|_| String::new())
+        .unwrap_or_else(|e| {
+            tracing::warn!("argon2 hashing failed: {e}");
+            String::new()
+        })
 }
 
 fn verify_password(hash: &str, plain: &str) -> bool {
