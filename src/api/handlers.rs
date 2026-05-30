@@ -2746,3 +2746,83 @@ pub(crate) async fn wol_wake(
         Err(e) => err(e.to_string()),
     }
 }
+
+// ─── MPLS ──────────────────────────────────────────────
+
+pub(crate) async fn mpls_interfaces(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.mpls_mgr.list_interfaces()))
+}
+pub(crate) async fn mpls_add_interface(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    use crate::mpls::MplsInterface;
+    s.mpls_mgr.add_interface(MplsInterface { name: body["name"].as_str().unwrap_or("").to_string(), transport_address: body["transport_address"].as_str().unwrap_or("").to_string(), enabled: true, label_space: 0 }); ok()
+}
+pub(crate) async fn mpls_remove_interface(State(s): State<AppState>, Path(name): Path<String>) -> Json<serde_json::Value> { s.mpls_mgr.remove_interface(&name); ok() }
+pub(crate) async fn mpls_lsps(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.mpls_mgr.list_lsps())) }
+
+// ─── RIP ───────────────────────────────────────────────
+
+pub(crate) async fn rip_interfaces(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.rip_mgr.list_interfaces())) }
+pub(crate) async fn rip_add_interface(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    use crate::routing::RipInterface;
+    s.rip_mgr.add_interface(RipInterface { name: body["name"].as_str().unwrap_or("").to_string(), enabled: body["enabled"].as_bool().unwrap_or(true), send_version: body["send_version"].as_u64().unwrap_or(2) as u8, receive_version: body["receive_version"].as_u64().unwrap_or(2) as u8, authentication: body["authentication"].as_str().map(|s| s.to_string()) }); ok()
+}
+pub(crate) async fn rip_remove_interface(State(s): State<AppState>, Path(name): Path<String>) -> Json<serde_json::Value> { s.rip_mgr.remove_interface(&name); ok() }
+pub(crate) async fn rip_routes(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.rip_mgr.list_routes())) }
+
+// ─── OSPFv3 ────────────────────────────────────────────
+
+pub(crate) async fn ospfv3_areas(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.ospfv3_mgr.list_areas())) }
+pub(crate) async fn ospfv3_add_area(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    use crate::routing::Ospfv3Area;
+    s.ospfv3_mgr.add_area(Ospfv3Area { area_id: body["area_id"].as_str().unwrap_or("0.0.0.0").to_string(), interfaces: body["interfaces"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()).unwrap_or_default(), enabled: body["enabled"].as_bool().unwrap_or(true), instance_id: body["instance_id"].as_u64().unwrap_or(0) as u8 }); ok()
+}
+pub(crate) async fn ospfv3_remove_area(State(s): State<AppState>, Path(id): Path<String>) -> Json<serde_json::Value> { s.ospfv3_mgr.remove_area(&id); ok() }
+
+// ─── Traffic Generator ─────────────────────────────────
+
+pub(crate) async fn traffic_gen_start(Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    match crate::tools::traffic_gen::generate_udp(body["target"].as_str().unwrap_or("127.0.0.1"), body["port"].as_u64().unwrap_or(5000) as u16, body["packet_size"].as_u64().unwrap_or(1472) as usize, body["packets"].as_u64().unwrap_or(1000)).await {
+        Ok(result) => Json(serde_json::json!(result)), Err(e) => err(e.to_string()),
+    }
+}
+
+// ─── Sniffer ───────────────────────────────────────────
+
+pub(crate) async fn sniffer_status(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!({"enabled": s.sniffer.is_enabled(), "packet_count": s.sniffer.get_packets().len()})) }
+pub(crate) async fn sniffer_set_enabled(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> { s.sniffer.set_enabled(body["enabled"].as_bool().unwrap_or(false)); ok() }
+pub(crate) async fn sniffer_packets(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.sniffer.get_packets())) }
+pub(crate) async fn sniffer_clear(State(s): State<AppState>) -> Json<serde_json::Value> { s.sniffer.clear(); ok() }
+
+// ─── RADIUS CoA ────────────────────────────────────────
+
+pub(crate) async fn radius_coa_disconnect(State(s): State<AppState>, Path(session): Path<String>) -> Json<serde_json::Value> {
+    match s.radius_coa.disconnect(&session).await { Ok(output) => Json(serde_json::json!({"output": output})), Err(e) => err(e.to_string()) }
+}
+
+// ─── Backup ────────────────────────────────────────────
+
+pub(crate) async fn backup_config(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.backup_mgr.get_config())) }
+pub(crate) async fn backup_set_config(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    use crate::backup::BackupConfig;
+    s.backup_mgr.set_config(BackupConfig { enabled: body["enabled"].as_bool().unwrap_or(false), path: body["path"].as_str().unwrap_or("/etc/punglios/backup").to_string(), upload_url: body["upload_url"].as_str().map(|s| s.to_string()), keep_count: body["keep_count"].as_u64().unwrap_or(7) as u32, schedule_cron: body["schedule_cron"].as_str().unwrap_or("0 3 * * *").to_string() }); ok()
+}
+pub(crate) async fn backup_run(State(s): State<AppState>) -> Json<serde_json::Value> { match s.backup_mgr.run_backup().await { Ok(o) => Json(serde_json::json!({"output": o})), Err(e) => err(e.to_string()) } }
+
+// ─── Email ─────────────────────────────────────────────
+
+pub(crate) async fn email_config(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.email_mgr.get_config())) }
+pub(crate) async fn email_set_config(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    use crate::tools::EmailConfig;
+    s.email_mgr.set_config(EmailConfig { enabled: body["enabled"].as_bool().unwrap_or(false), server: body["server"].as_str().unwrap_or("smtp.example.com").to_string(), port: body["port"].as_u64().unwrap_or(587) as u16, username: body["username"].as_str().map(|s| s.to_string()), password: body["password"].as_str().map(|s| s.to_string()), from: body["from"].as_str().unwrap_or("punglios@local").to_string(), to: body["to"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()).unwrap_or_default(), use_tls: body["use_tls"].as_bool().unwrap_or(true) }); ok()
+}
+
+// ─── UPnP ──────────────────────────────────────────────
+
+pub(crate) async fn upnp_status(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!({"enabled": s.upnp_mgr.is_enabled(), "mappings": s.upnp_mgr.list_mappings()})) }
+pub(crate) async fn upnp_set_enabled(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> { s.upnp_mgr.set_enabled(body["enabled"].as_bool().unwrap_or(false)); ok() }
+pub(crate) async fn upnp_add_mapping(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    use crate::upnp::UpnpMapping;
+    let ip: std::net::Ipv4Addr = match body["internal_ip"].as_str().unwrap_or("0.0.0.0").parse() { Ok(a) => a, Err(_) => return err("invalid IP".into()) };
+    s.upnp_mgr.add_mapping(UpnpMapping { id: (s.upnp_mgr.list_mappings().len() + 1) as u64, external_port: body["external_port"].as_u64().unwrap_or(0) as u16, internal_port: body["internal_port"].as_u64().unwrap_or(0) as u16, internal_ip: ip, protocol: body["protocol"].as_str().unwrap_or("tcp").to_string(), duration_secs: body["duration"].as_u64().unwrap_or(0) as u32, description: body["description"].as_str().unwrap_or("").to_string() }); ok()
+}
+pub(crate) async fn upnp_remove_mapping(State(s): State<AppState>, Path(id): Path<u64>) -> Json<serde_json::Value> { s.upnp_mgr.remove_mapping(id); ok() }

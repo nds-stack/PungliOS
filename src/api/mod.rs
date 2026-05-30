@@ -5,9 +5,10 @@ pub(crate) mod monitoring;
 
 use crate::traits::MockBackend;
 use crate::{
-    address_list, billing, bonding, bpf_qos, bridge, conntrack, dhcp, dhcp_client, dns, firewall,
-    graphs, hotspot, ipsec, ipv6, l2tp, lldp, lte, net, netwatch, ntp, plugins, pppoe, qos,
-    routing, scheduler, snmp, tenancy, tools, traffic_flow, tunnel, user, vrf, vrrp, wireguard,
+    address_list, backup, billing, bonding, bpf_qos, bridge, conntrack, dhcp, dhcp_client, dns,
+    firewall, graphs, hotspot, ipsec, ipv6, l2tp, lldp, lte, mpls, net, netwatch, ntp, plugins,
+    pppoe, qos, radius, routing, scheduler, snmp, tenancy, tools, traffic_flow, tunnel, upnp, user,
+    vrf, vrrp, wireguard,
 };
 use axum::{
     Json, Router,
@@ -75,6 +76,15 @@ pub struct AppState {
     pub gre_mgr: Arc<tunnel::GreManager>,
     pub flow_exporter: Arc<traffic_flow::FlowExporter>,
     pub wol_mgr: Arc<tools::WolManager>,
+    pub mpls_mgr: Arc<mpls::MplsManager>,
+    pub rip_mgr: Arc<routing::RipManager>,
+    pub ospfv3_mgr: Arc<routing::Ospfv3Manager>,
+    pub traffic_gen: bool,
+    pub sniffer: Arc<tools::PacketSniffer>,
+    pub radius_coa: Arc<radius::coa::RadiusCoa>,
+    pub backup_mgr: Arc<backup::BackupManager>,
+    pub email_mgr: Arc<tools::EmailManager>,
+    pub upnp_mgr: Arc<upnp::UpnpManager>,
     pub monitoring_tx: broadcast::Sender<String>,
 }
 
@@ -157,6 +167,15 @@ impl AppState {
             gre_mgr: Arc::new(tunnel::GreManager::new()),
             flow_exporter: Arc::new(traffic_flow::FlowExporter::new()),
             wol_mgr: Arc::new(tools::WolManager::new()),
+            mpls_mgr: Arc::new(mpls::MplsManager::new()),
+            rip_mgr: Arc::new(routing::RipManager::new()),
+            ospfv3_mgr: Arc::new(routing::Ospfv3Manager::new()),
+            traffic_gen: false,
+            sniffer: Arc::new(tools::PacketSniffer::new()),
+            radius_coa: Arc::new(radius::coa::RadiusCoa::new("127.0.0.1", "secret", 3799)),
+            backup_mgr: Arc::new(backup::BackupManager::new()),
+            email_mgr: Arc::new(tools::EmailManager::new()),
+            upnp_mgr: Arc::new(upnp::UpnpManager::new()),
             monitoring_tx,
         }
     }
@@ -708,6 +727,32 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/tools/wol/wake/{mac}",
             post(handlers::wol_wake),
         )
+        .route("/api/v1/mpls/interfaces", get(handlers::mpls_interfaces))
+        .route("/api/v1/mpls/interfaces", post(handlers::mpls_add_interface))
+        .route("/api/v1/mpls/interfaces/{name}", delete(handlers::mpls_remove_interface))
+        .route("/api/v1/mpls/lsps", get(handlers::mpls_lsps))
+        .route("/api/v1/routing/rip/interfaces", get(handlers::rip_interfaces))
+        .route("/api/v1/routing/rip/interfaces", post(handlers::rip_add_interface))
+        .route("/api/v1/routing/rip/interfaces/{name}", delete(handlers::rip_remove_interface))
+        .route("/api/v1/routing/rip/routes", get(handlers::rip_routes))
+        .route("/api/v1/routing/ospfv3/areas", get(handlers::ospfv3_areas))
+        .route("/api/v1/routing/ospfv3/areas", post(handlers::ospfv3_add_area))
+        .route("/api/v1/routing/ospfv3/areas/{id}", delete(handlers::ospfv3_remove_area))
+        .route("/api/v1/tools/traffic-gen", post(handlers::traffic_gen_start))
+        .route("/api/v1/tools/sniffer", get(handlers::sniffer_status))
+        .route("/api/v1/tools/sniffer", post(handlers::sniffer_set_enabled))
+        .route("/api/v1/tools/sniffer/packets", get(handlers::sniffer_packets))
+        .route("/api/v1/tools/sniffer/clear", post(handlers::sniffer_clear))
+        .route("/api/v1/radius/coa/disconnect/{session}", post(handlers::radius_coa_disconnect))
+        .route("/api/v1/backup/config", get(handlers::backup_config))
+        .route("/api/v1/backup/config", put(handlers::backup_set_config))
+        .route("/api/v1/backup/run", post(handlers::backup_run))
+        .route("/api/v1/tools/email/config", get(handlers::email_config))
+        .route("/api/v1/tools/email/config", put(handlers::email_set_config))
+        .route("/api/v1/upnp/status", get(handlers::upnp_status))
+        .route("/api/v1/upnp/enabled", post(handlers::upnp_set_enabled))
+        .route("/api/v1/upnp/mappings", post(handlers::upnp_add_mapping))
+        .route("/api/v1/upnp/mappings/{id}", delete(handlers::upnp_remove_mapping))
         .with_state(state)
 }
 
