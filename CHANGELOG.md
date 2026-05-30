@@ -4,6 +4,53 @@ All notable changes to PungliOS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0] - 2026-05-30
+
+### Added
+
+- **Web UI (3.2):** 12-page dashboard with Tera templates + HTMX + Alpine.js — interfaces, firewall, NAT, routes, QoS, users, packages, sessions, DHCP, DNS, monitoring, billing
+- **SSE Monitoring (3.3-3.4):** Real-time bandwidth/CPU/conntrack stream via Server-Sent Events (`/api/v1/monitoring/stream`)
+- **Conntrack Analyzer (3.5):** `top_talkers()`, `protocol_distribution()` analysis methods
+- **Billing API (3.6):** BillingBackend trait, BillingPlan, Invoice management, web UI page
+- **Dynamic Routing (4.1):** BGP peer management + OSPF area management via DynamicRouting trait + MockDynamicRouting, 8 API endpoints
+- **WireGuard Manager (4.2):** WireguardBackend trait + MockWireguardBackend, 7 API endpoints, web UI with Alpine.js fetch CRUD
+- **VRRP (4.3):** VrrpBackend trait, VrrpInstance management, API + web UI
+- **PPPoE Failover (4.4):** PppFailoverBackend trait, uplink priority failover, trigger API, web UI
+- **BPF+EDT QoS (4.5):** BpfQosBackend trait, BpfQosManager with high-performance qdisc attachment API
+- **Plugin System (4.6):** Plugin trait + PluginRegistry with load/enable/disable lifecycle, tokio::sync::RwLock
+- **Multi-tenancy (4.7):** TenancyBackend trait, Tenant CRUD API
+- **RADIUS Encryption:** RFC 2865 Section 5.2 MD5 XOR password encryption via `md-5` crate
+- **NAT Listing:** RealBackend `list_rules()` via nftables netlink dump, comment-based masquerade detection, expression bytes parsing for `to_addr`/`to_port`
+- **RealPppoeBackend:** Full AF_PACKET raw socket implementation (libc::socket, bind, sendto, recvfrom)
+- **InterfaceKind:** `Dummy`, `Bridge`, `Vlan { parent, vlan_id }` enum added to `InterfaceConfig`
+- **Argon2 Password Hashing:** SHA-256 → Argon2 (PHC string format, salt otomatis)
+- **Competitor Benchmarks:** `benches/routing.rs` with HashMap/vec baselines vs MockDynamicRouting
+- **Debug Implementations:** `fmt::Debug` added to all 6 manager structs (InterfaceManager, FirewallManager, QosManager, ConntrackManager, RouterManager, NatManager)
+- **Doc Comments:** Added to all `pub` items in `api/mod.rs`, `traits/netlink.rs`, and key public types
+- **SRI Hashes:** CDN scripts (Tailwind, HTMX, Alpine.js) now include `integrity` attributes
+- **CPU Delta Monitoring:** CPU calculation uses delta between readings via `AtomicU64` statics
+
+### Changed
+
+- **Password Storage:** `User.password` → `User.password_hash` with `set_password()`/`verify_password()` methods
+- **API Module Split:** `src/api/mod.rs` split into `mod.rs` + `handlers.rs` + `monitoring.rs` (956→200 lines)
+- **`unsafe_code` lint:** Changed from `#![deny(unsafe_code)]` to `#![cfg_attr(not(feature = "real"), deny(unsafe_code))]` to allow raw socket FFI
+- **Conntrack hashsize:** `set_buckets()` now tries sysctl write (non-fatal warning on failure)
+- **IPv6 NAT:** Changed from `bail!()` to `tracing::warn()` + skip
+- **`libc` crate:** Made optional (`real` feature only)
+
+### Fixed
+
+- **LCP Option Encoding:** `encode()` was writing `opt.value.len()` instead of `opt.value.len() + 2` (total length) — fixed
+- **Template Path Resolution:** Binary-relative path now also checks grandparent directory
+- **WireGuard Template:** Python-style `[:16]` slice syntax → Tera `truncate` filter
+- **CDN Redirect Issue:** `cdn.tailwindcss.com` 302 redirect caused SRI mismatch — switched to direct versioned URL
+- **VlanLink API:** `.vlan_id()` method doesn't exist — `VlanLink::new()` takes 3 args directly
+- **`str_as_str` unstable:** Rust 1.96 unstable feature — changed to `as_ref()`
+- **RADIUS Integration Tests:** Missing `"secret"` param in `RadiusClient::new()` calls
+- **Various clippy warnings:** `manual_div_ceil`, `sort_by_key`, `redundant_closure`, `new_without_default`, `comparison_chain`
+- **`futures` dependency:** Was accidentally removed during dependency cleanup — restored
+
 ## [0.3.0] - 2026-05-29
 
 ### Added
