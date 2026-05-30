@@ -9,6 +9,7 @@ extern crate tempfile;
 #[cfg(test)]
 extern crate tokio_test;
 
+pub mod address_list;
 pub mod api;
 pub mod billing;
 pub mod bpf_qos;
@@ -16,6 +17,7 @@ pub mod cli;
 pub mod config;
 pub mod conntrack;
 pub mod dhcp;
+pub mod dhcp_client;
 pub mod dns;
 pub mod firewall;
 pub mod net;
@@ -23,7 +25,9 @@ pub mod plugins;
 pub mod pppoe;
 pub mod qos;
 pub mod routing;
+pub mod scheduler;
 pub mod tenancy;
+pub mod tools;
 pub mod traits;
 pub mod user;
 pub mod vrrp;

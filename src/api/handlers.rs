@@ -6,9 +6,24 @@ use crate::wireguard;
 use crate::{billing, bpf_qos, pppoe, routing, tenancy, vrrp};
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
 };
+use serde::Deserialize;
 use std::net::{IpAddr, Ipv4Addr};
+
+#[derive(Deserialize)]
+pub(crate) struct ToolsPingParams {
+    pub target: String,
+    pub count: Option<u32>,
+    pub timeout: Option<u64>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct ToolsTraceParams {
+    pub target: String,
+    pub max_ttl: Option<u32>,
+    pub timeout: Option<u64>,
+}
 
 // ─── Health ────────────────────────────────────────────
 
@@ -1022,6 +1037,271 @@ pub(crate) async fn delete_vrrp_instance(
 pub(crate) async fn get_vrrp_status(State(s): State<AppState>) -> Json<serde_json::Value> {
     match s.vrrp_mgr.get_status().await {
         Ok(status) => Json(serde_json::json!(status)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+// ─── Address Lists ─────────────────────────────────────
+
+pub(crate) async fn list_all_address_lists(
+    State(s): State<AppState>,
+) -> Json<serde_json::Value> {
+    let names = s.address_list_mgr.list_names();
+    let mut result = Vec::new();
+    for name in &names {
+        let entries = s.address_list_mgr.list(name);
+        result.push(serde_json::json!({
+            "name": name,
+            "count": entries.len(),
+            "entries": entries,
+        }));
+    }
+    Json(serde_json::json!(result))
+}
+
+pub(crate) async fn list_address_list(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    let entries = s.address_list_mgr.list(&name);
+    Json(serde_json::json!(entries))
+}
+
+pub(crate) async fn add_address_list(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let name = body["name"].as_str().unwrap_or("").to_string();
+    let addr_str = body["address"].as_str().unwrap_or("").to_string();
+    let prefix = body["prefix"].as_u64().unwrap_or(32) as u8;
+    let policy_str = body["policy"].as_str().unwrap_or("drop");
+    let timeout_secs = body["timeout"].as_u64();
+    let source = body["source"].as_str().unwrap_or("api");
+
+    if name.is_empty() {
+        return err("address list name is required".into());
+    }
+    let address: std::net::IpAddr = match addr_str.parse() {
+        Ok(a) => a,
+        Err(_) => return err(format!("invalid IP address: {addr_str}")),
+    };
+    let policy = match policy_str {
+        "allow" => crate::address_list::AddressListPolicy::Allow,
+        "reject" => crate::address_list::AddressListPolicy::Reject,
+        _ => crate::address_list::AddressListPolicy::Drop,
+    };
+    let timeout = timeout_secs.map(std::time::Duration::from_secs);
+
+    match s
+        .address_list_mgr
+        .add(&name, address, prefix, policy, timeout, &source)
+    {
+        Ok(entry) => Json(serde_json::json!(entry)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn remove_address_list(
+    State(s): State<AppState>,
+    Path(id): Path<u64>,
+) -> Json<serde_json::Value> {
+    match s.address_list_mgr.remove(id) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn flush_address_list(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    s.address_list_mgr.flush(&name);
+    ok()
+}
+
+// ─── Tools ──────────────────────────────────────────────
+
+pub(crate) async fn tools_ping(
+    Query(params): Query<ToolsPingParams>,
+) -> Json<serde_json::Value> {
+    use crate::tools::Pinger;
+    let target: std::net::IpAddr = match params.target.parse() {
+        Ok(a) => a,
+        Err(_) => return err(format!("invalid target: {}", params.target)),
+    };
+    let count = params.count.unwrap_or(4).min(100);
+    let timeout = std::time::Duration::from_secs(params.timeout.unwrap_or(5).min(30));
+    let interval = std::time::Duration::from_secs(1);
+
+    match Pinger::ping(target, count, interval, timeout).await {
+        Ok(result) => Json(serde_json::json!(result)),
+        Err(e) => err(format!("ping failed: {e}")),
+    }
+}
+
+pub(crate) async fn tools_traceroute(
+    Query(params): Query<ToolsTraceParams>,
+) -> Json<serde_json::Value> {
+    let target: std::net::IpAddr = match params.target.parse() {
+        Ok(a) => a,
+        Err(_) => return err(format!("invalid target: {}", params.target)),
+    };
+    let max_ttl = params.max_ttl.unwrap_or(30).min(64);
+    let timeout = std::time::Duration::from_secs(params.timeout.unwrap_or(5).min(30));
+
+    match crate::tools::traceroute::traceroute(target, max_ttl, timeout).await {
+        Ok(result) => Json(serde_json::json!(result)),
+        Err(e) => err(format!("traceroute failed: {e}")),
+    }
+}
+
+// ─── DHCP Client ────────────────────────────────────────
+
+pub(crate) async fn dhcp_client_discover(
+    State(s): State<AppState>,
+    Path(interface): Path<String>,
+) -> Json<serde_json::Value> {
+    let config = crate::dhcp_client::DhcpClientConfig {
+        interface: interface.clone(),
+        ..Default::default()
+    };
+    match s.dhcp_client_mgr.discover(&interface, &config).await {
+        Ok(lease) => Json(serde_json::json!(lease)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn dhcp_client_status(
+    State(s): State<AppState>,
+    Path(interface): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.dhcp_client_mgr.get_status(&interface).await {
+        Ok(status) => Json(serde_json::json!(status)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn dhcp_client_release(
+    State(s): State<AppState>,
+    Path(interface): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.dhcp_client_mgr.get_status(&interface).await {
+        Ok(status) => {
+            if let Some(lease) = status.lease {
+                match s.dhcp_client_mgr.release(&interface, &lease).await {
+                    Ok(_) => ok(),
+                    Err(e) => err(e.to_string()),
+                }
+            } else {
+                err("no active lease".into())
+            }
+        }
+        Err(e) => err(e.to_string()),
+    }
+}
+
+// ─── Scheduler ──────────────────────────────────────────
+
+pub(crate) async fn list_scheduler_tasks(
+    State(s): State<AppState>,
+) -> Json<serde_json::Value> {
+    let tasks = s.scheduler_mgr.list().await;
+    Json(serde_json::json!(tasks))
+}
+
+pub(crate) async fn get_scheduler_task(
+    State(s): State<AppState>,
+    Path(id): Path<u64>,
+) -> Json<serde_json::Value> {
+    match s.scheduler_mgr.get(id).await {
+        Some(task) => Json(serde_json::json!(task)),
+        None => err(format!("task {id} not found")),
+    }
+}
+
+pub(crate) async fn create_scheduler_task(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::scheduler::{ScheduledTask, ScheduledTaskAction, ScheduleInterval};
+
+    let name = body["name"].as_str().unwrap_or("").to_string();
+    if name.is_empty() {
+        return err("task name is required".into());
+    }
+
+    let interval = match body["interval"].as_str().unwrap_or("once") {
+        "once" => ScheduleInterval::Once,
+        "hourly" => ScheduleInterval::Every(std::time::Duration::from_secs(3600)),
+        "daily" => ScheduleInterval::Daily {
+            hour: body["hour"].as_u64().unwrap_or(0) as u8,
+            minute: body["minute"].as_u64().unwrap_or(0) as u8,
+        },
+        s if s.starts_with("every_") => {
+            let secs = s
+                .trim_start_matches("every_")
+                .parse::<u64>()
+                .unwrap_or(3600);
+            ScheduleInterval::Every(std::time::Duration::from_secs(secs))
+        }
+        _ => ScheduleInterval::Once,
+    };
+
+    let action = match body["action"].as_str().unwrap_or("cleanup_expired") {
+        "cleanup_expired" => ScheduledTaskAction::CleanupExpired,
+        "notify" => {
+            ScheduledTaskAction::Notify(body["message"].as_str().unwrap_or("").to_string())
+        }
+        "http_get" => {
+            ScheduledTaskAction::HttpGet(body["url"].as_str().unwrap_or("").to_string())
+        }
+        "enable_interface" => ScheduledTaskAction::EnableInterface(
+            body["interface"].as_str().unwrap_or("").to_string(),
+        ),
+        "disable_interface" => ScheduledTaskAction::DisableInterface(
+            body["interface"].as_str().unwrap_or("").to_string(),
+        ),
+        a => return err(format!("unknown action: {a}")),
+    };
+
+    let task = ScheduledTask {
+        id: 0,
+        name,
+        description: body["description"].as_str().unwrap_or("").to_string(),
+        interval,
+        action,
+        enabled: body["enabled"].as_bool().unwrap_or(true),
+        last_run: None,
+        last_result: None,
+        run_count: 0,
+    };
+
+    match s.scheduler_mgr.add(task).await {
+        Ok(id) => Json(serde_json::json!({"id": id})),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn delete_scheduler_task(
+    State(s): State<AppState>,
+    Path(id): Path<u64>,
+) -> Json<serde_json::Value> {
+    match s.scheduler_mgr.remove(id).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn toggle_scheduler_task(
+    State(s): State<AppState>,
+    Path(id): Path<u64>,
+) -> Json<serde_json::Value> {
+    let task = match s.scheduler_mgr.get(id).await {
+        Some(t) => t,
+        None => return err(format!("task {id} not found")),
+    };
+    match s.scheduler_mgr.set_enabled(id, !task.enabled).await {
+        Ok(_) => ok(),
         Err(e) => err(e.to_string()),
     }
 }

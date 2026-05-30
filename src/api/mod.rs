@@ -5,8 +5,8 @@ pub(crate) mod monitoring;
 
 use crate::traits::MockBackend;
 use crate::{
-    billing, bpf_qos, conntrack, firewall, net, plugins, pppoe, qos, routing, tenancy, user, vrrp,
-    wireguard,
+    address_list, billing, bpf_qos, conntrack, dhcp_client, firewall, net, plugins, pppoe, qos,
+    routing, scheduler, tenancy, user, vrrp, wireguard,
 };
 use axum::{
     Json, Router,
@@ -37,6 +37,9 @@ pub struct AppState {
     pub bpf_qos_mgr: Arc<bpf_qos::BpfQosManager<bpf_qos::MockBpfQos>>,
     pub plugin_mgr: Arc<plugins::PluginManager>,
     pub tenancy_mgr: Arc<tenancy::TenancyManager<tenancy::MockTenancy>>,
+    pub address_list_mgr: Arc<address_list::AddressListManager>,
+    pub dhcp_client_mgr: Arc<dhcp_client::DhcpClientManager<dhcp_client::MockDhcpClient>>,
+    pub scheduler_mgr: Arc<scheduler::ScheduledTaskManager>,
     pub monitoring_tx: broadcast::Sender<String>,
 }
 
@@ -78,6 +81,11 @@ impl AppState {
             bpf_qos_mgr: Arc::new(bpf_qos::BpfQosManager::new(bpf_qos::MockBpfQos::new())),
             plugin_mgr: Arc::new(plugins::PluginManager::new()),
             tenancy_mgr: Arc::new(tenancy::TenancyManager::new(tenancy::MockTenancy::new())),
+            address_list_mgr: Arc::new(address_list::AddressListManager::new()),
+            dhcp_client_mgr: Arc::new(dhcp_client::DhcpClientManager::new(
+                dhcp_client::MockDhcpClient,
+            )),
+            scheduler_mgr: Arc::new(scheduler::ScheduledTaskManager::new()),
             monitoring_tx,
         }
     }
@@ -252,6 +260,57 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/api/v1/monitoring/stream",
             get(monitoring::monitoring_stream),
+        )
+        .route("/api/v1/address-lists", get(handlers::list_all_address_lists))
+        .route(
+            "/api/v1/address-lists/{name}",
+            get(handlers::list_address_list),
+        )
+        .route(
+            "/api/v1/address-lists",
+            post(handlers::add_address_list),
+        )
+        .route(
+            "/api/v1/address-lists/{id}",
+            delete(handlers::remove_address_list),
+        )
+        .route(
+            "/api/v1/address-lists/{name}/flush",
+            post(handlers::flush_address_list),
+        )
+        .route(
+            "/api/v1/tools/ping",
+            get(handlers::tools_ping),
+        )
+        .route(
+            "/api/v1/tools/traceroute",
+            get(handlers::tools_traceroute),
+        )
+        .route(
+            "/api/v1/dhcp-client/{interface}/discover",
+            post(handlers::dhcp_client_discover),
+        )
+        .route(
+            "/api/v1/dhcp-client/{interface}/status",
+            get(handlers::dhcp_client_status),
+        )
+        .route(
+            "/api/v1/dhcp-client/{interface}/release",
+            post(handlers::dhcp_client_release),
+        )
+        .route("/api/v1/scheduler/tasks", get(handlers::list_scheduler_tasks))
+        .route("/api/v1/scheduler/tasks", post(handlers::create_scheduler_task))
+        .route(
+            "/api/v1/scheduler/tasks/{id}",
+            get(handlers::get_scheduler_task),
+        )
+        .route(
+            "/api/v1/scheduler/tasks/{id}",
+            delete(handlers::delete_scheduler_task),
+        )
+        .route(
+            "/api/v1/scheduler/tasks/{id}/toggle",
+            post(handlers::toggle_scheduler_task),
         )
         .with_state(state)
 }

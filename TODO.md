@@ -1,6 +1,6 @@
 # TODO.md — PungliOS Roadmap & Milestones
 
-> Status: 🟢 Phase 1-4 Complete | 🔵 Future backlog
+> Status: 🟢 Phase 1-4 Complete | 🟡 Phase 5: MikroTik Feature Parity | 🔵 Future backlog
 
 ---
 
@@ -62,12 +62,11 @@
 ## Phase 3: Management + Monitoring 🟢 COMPLETE
 
 **Target:** Web UI, REST API, real-time monitoring
-**Deadline:** TBD
 
 | # | Task | Komponen | Status | Priority |
 |---|------|----------|--------|----------|
 | 3.1 | REST API (Axum, full CRUD semua resource) | API | 🟢 DONE | P0 |
-| 3.2 | Web UI dashboard (Leptos/Yew → Tera + HTMX) | Web UI | 🟢 WIP | P1 |
+| 3.2 | Web UI dashboard (Leptos/Yew → Tera + HTMX) | Web UI | 🟢 DONE | P1 |
 | 3.3 | Real-time bandwidth monitoring (SSE stream) | Monitoring | 🟢 DONE | P1 |
 | 3.4 | CPU & conntrack monitoring (SSE stream) | Monitoring | 🟢 DONE | P1 |
 | 3.5 | Connection tracking analyzer | Monitoring | 🟢 DONE | P2 |
@@ -75,16 +74,11 @@
 | 3.7 | User management dashboard | Web UI | 🟢 DONE | P2 |
 | 3.8 | QoS config UI | Web UI | 🟢 DONE | P2 |
 
-**Success Metrics:**
-- [ ] REST API response <50ms
-- [ ] Real-time dashboard refresh <1s
-
 ---
 
 ## Phase 4: Advanced Features 🟢 COMPLETE
 
 **Target:** Enterprise-grade
-**Deadline:** TBD
 
 | # | Task | Komponen | Status | Priority |
 |---|------|----------|--------|----------|
@@ -96,15 +90,74 @@
 | 4.6 | Plugin system (extensibility framework) | Plugins | 🟢 DONE | P3 |
 | 4.7 | Multi-tenancy | Platform | 🟢 DONE | P3 |
 
-**Success Metrics:**
-- [ ] 50K+ concurrent users
-- [ ] 10+ Gbps throughput
-- [ ] CPU <70% @ max load
-- [ ] HA failover <100ms
+---
+
+## Phase 5: MikroTik Feature Parity 🟡 IN PROGRESS
+
+**Target:** Built-in fitur setara MikroTik RouterOS untuk kebutuhan ISP/WISP
+**Status:** 🟡 **Sprint 1 berjalan**
+
+### Sprint 1: Easy Wins
+
+| # | Task | File | Status | Priority |
+|---|------|------|--------|----------|
+| 5.1 | Address List (CRUD + auto-populate from conntrack) | `src/address_list/` | 🔴 TODO | P0 |
+| 5.2 | Connection State Matching (established/related/invalid) | `src/firewall/conn_state.rs` | 🔴 TODO | P0 |
+| 5.3 | Tools: Ping + Traceroute | `src/tools/` | 🔴 TODO | P0 |
+| 5.4 | DHCP Client (WAN) | `src/dhcp_client/` | 🔴 TODO | P0 |
+| 5.5 | Scheduler (cron-like periodic tasks) | `src/scheduler/` | 🔴 TODO | P0 |
+
+### Sprint 2: Connectivity
+
+| # | Task | File | Status | Priority |
+|---|------|------|--------|----------|
+| 5.6 | BGP Real Backend (TCP socket + FSM + UPDATE parser) | `src/routing/bgp_real.rs` | 🔴 TODO | P0 |
+| 5.7 | OSPF Real Backend (packet encode/decode + LSDB + SPF) | `src/routing/ospf_real.rs` | 🔴 TODO | P0 |
+| 5.8 | Route Filters / Prefix Lists / AS-Path / Route-Map | `src/routing/filters.rs` | 🔴 TODO | P0 |
+| 5.9 | WireGuard Real Backend (netlink WG_CMD) | `src/wireguard/real.rs` | 🔴 TODO | P0 |
+| 5.10 | Bonding/LACP (802.3ad) | `src/bonding/` | 🔴 TODO | P1 |
+| 5.11 | Bridge VLAN Filtering (netlink bridge vlan) | `src/interface/bridge_vlan.rs` | 🔴 TODO | P1 |
+
+### Sprint 3: Networking Infra
+
+| # | Task | File | Status | Priority |
+|---|------|------|--------|----------|
+| 5.12 | VRF (L3 routing table isolation) | `src/vrf/` | 🔴 TODO | P1 |
+| 5.13 | L2TP Client/Server (RFC 2661, UDP 1701) | `src/l2tp/` | 🔴 TODO | P1 |
+| 5.14 | Netwatch (ping monitor + action trigger) | `src/netwatch/` | 🔴 TODO | P2 |
+| 5.15 | PCQ QoS (per-connection hashed queuing) | `src/bpf_qos/pcq.rs` | 🔴 TODO | P2 |
+| 5.16 | SNMP Agent (MIB-II + private) | `src/snmp/` | 🔴 TODO | P2 |
+
+### Sprint 4: Business & Monitoring
+
+| # | Task | File | Status | Priority |
+|---|------|------|--------|----------|
+| 5.17 | Historical Graphs (time-series DB + Chart.js dashboard) | `src/graphs/` | 🔴 TODO | P2 |
+| 5.18 | Bandwidth Test (server + client) | `src/tools/bw_test.rs` | 🔴 TODO | P2 |
+
+### Sprint 5: Heavy
+
+| # | Task | File | Status | Priority |
+|---|------|------|--------|----------|
+| 5.19 | Hotspot / Captive Portal — Layer 1 (match MikroTik) | `src/hotspot/` | 🔴 TODO | P1 |
+| 5.20 | IPsec / IKEv2 (StrongSwan wrapper) | `src/ipsec/` | 🔴 TODO | P2 |
+
+### Hotspot — Enhancement Layers (catatan backlog)
+
+Layer 2 (unggulin MikroTik — setelah Layer 1 stable):
+- [ ] Voucher system (pre-generate kode, redeem di portal)
+- [ ] Bandwidth management per session (link ke QoS class by username/IP)
+- [ ] Daily/monthly quota management
+- [ ] MAC authentication bypass (MAC known → auto allow)
+
+Layer 3 (future):
+- [ ] Social login (Google OAuth)
+- [ ] SMS OTP (via API)
+- [ ] Custom branding + template engine
 
 ---
 
-## Future (Post-P4)
+## Future (Post-P5)
 
 | Task | Status | Notes |
 |------|--------|-------|
@@ -112,8 +165,6 @@
 | Kubernetes operator | 🔵 Backlog | |
 | Cloud-native deployment | 🔵 Backlog | |
 | RESTCONF/YANG API | 🔵 Backlog | |
-
----
 
 ## Legend
 
