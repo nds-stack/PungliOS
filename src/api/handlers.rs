@@ -1101,7 +1101,7 @@ pub(crate) async fn add_address_list(
     }
 }
 
-pub(crate) async fn remove_address_list(
+pub(crate) async fn remove_address_list_entry(
     State(s): State<AppState>,
     Path(id): Path<u64>,
 ) -> Json<serde_json::Value> {

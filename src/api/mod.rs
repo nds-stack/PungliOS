@@ -263,16 +263,16 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/v1/address-lists", get(handlers::list_all_address_lists))
         .route(
-            "/api/v1/address-lists/{name}",
-            get(handlers::list_address_list),
-        )
-        .route(
             "/api/v1/address-lists",
             post(handlers::add_address_list),
         )
         .route(
-            "/api/v1/address-lists/{id}",
-            delete(handlers::remove_address_list),
+            "/api/v1/address-lists/{name}",
+            get(handlers::list_address_list),
+        )
+        .route(
+            "/api/v1/address-lists/entry/{id}",
+            delete(handlers::remove_address_list_entry),
         )
         .route(
             "/api/v1/address-lists/{name}/flush",
