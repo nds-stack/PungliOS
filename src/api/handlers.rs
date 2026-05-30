@@ -2094,3 +2094,146 @@ pub(crate) async fn add_graph_datapoint(
     s.graph_store.add_data(&name, value);
     ok()
 }
+
+// ─── Hotspot ───────────────────────────────────────────
+
+pub(crate) async fn hotspot_list_sessions(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.hotspot_sessions.list()))
+}
+
+pub(crate) async fn hotspot_login(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let username = body["username"].as_str().unwrap_or("").to_string();
+    let password = body["password"].as_str().unwrap_or("").to_string();
+    let ip_str = body["ip"].as_str().unwrap_or("0.0.0.0");
+    let mac = body["mac"].as_str().unwrap_or("00:00:00:00:00:00");
+
+    if let Err(e) = crate::hotspot::HotspotAuth::validate(&username, &password) {
+        return err(e.to_string());
+    }
+
+    let ip: std::net::IpAddr = match ip_str.parse() {
+        Ok(a) => a,
+        Err(_) => return err("invalid IP address".into()),
+    };
+
+    match s.hotspot_sessions.create(&username, &password, ip, mac) {
+        Ok(session) => {
+            s.hotspot_sessions.authorize(session.id).ok();
+            s.hotspot_walled_garden.allow_ip(ip);
+            Json(serde_json::json!(session))
+        }
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn hotspot_logout(
+    State(s): State<AppState>,
+    Path(id): Path<u64>,
+) -> Json<serde_json::Value> {
+    match s.hotspot_sessions.logout(id) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn hotspot_status(State(s): State<AppState>) -> Json<serde_json::Value> {
+    let active = s.hotspot_sessions.list_active().len();
+    let total = s.hotspot_sessions.list().len();
+    Json(serde_json::json!({
+        "active_sessions": active,
+        "total_sessions": total,
+    }))
+}
+
+pub(crate) async fn hotspot_walled_garden(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "domains": s.hotspot_walled_garden.list_domains(),
+        "ips": s.hotspot_walled_garden.list_ips(),
+    }))
+}
+
+// ─── BGP Inject ────────────────────────────────────────
+
+pub(crate) async fn bgp_inject_route(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let dst = body["destination"].as_str().unwrap_or("").to_string();
+    let prefix = body["prefix"].as_u64().unwrap_or(32) as u8;
+    let nexthop = body["nexthop"].as_str().unwrap_or("0.0.0.0").to_string();
+    let metric = body["metric"].as_u64().unwrap_or(100) as u32;
+    match s.bgp_injector.inject_route(&dst, prefix, &nexthop, metric) {
+        Ok(route) => Json(serde_json::json!(route)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn bgp_list_injected(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.bgp_injector.get_routes()))
+}
+
+// ─── OSPF SPF ──────────────────────────────────────────
+
+pub(crate) async fn ospf_run_spf(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.ospf_spf.run_spf() {
+        Ok(routes) => Json(serde_json::json!(routes)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn ospf_lsdb_status(State(_s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!({"lsdb_size": 0}))
+}
+
+// ─── LTE ───────────────────────────────────────────────
+
+pub(crate) async fn lte_info(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.lte_mgr.get_info() {
+        Some(info) => Json(serde_json::json!(info)),
+        None => Json(serde_json::json!(null)),
+    }
+}
+
+pub(crate) async fn lte_refresh(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.lte_mgr.refresh().await {
+        Ok(info) => Json(serde_json::json!(info)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn lte_connect(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.lte_mgr.connect().await {
+        Ok(output) => Json(serde_json::json!({"output": output})),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn lte_disconnect(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.lte_mgr.disconnect().await {
+        Ok(output) => Json(serde_json::json!({"output": output})),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn lte_config(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.lte_mgr.get_config()))
+}
+
+pub(crate) async fn lte_set_config(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::lte::ModemConfig;
+    let config = ModemConfig {
+        apn: body["apn"].as_str().unwrap_or("internet").to_string(),
+        pin: body["pin"].as_str().map(|s| s.to_string()),
+        roam_allowed: body["roam_allowed"].as_bool().unwrap_or(false),
+    };
+    match s.lte_mgr.set_config(config) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}

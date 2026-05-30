@@ -5,9 +5,9 @@ pub(crate) mod monitoring;
 
 use crate::traits::MockBackend;
 use crate::{
-    address_list, billing, bonding, bpf_qos, conntrack, dhcp_client, firewall, graphs, ipsec, l2tp,
-    net, netwatch, ntp, plugins, pppoe, qos, routing, scheduler, snmp, tenancy, user, vrf, vrrp,
-    wireguard,
+    address_list, billing, bonding, bpf_qos, conntrack, dhcp_client, firewall, graphs, hotspot,
+    ipsec, l2tp, lte, net, netwatch, ntp, plugins, pppoe, qos, routing, scheduler, snmp, tenancy,
+    user, vrf, vrrp, wireguard,
 };
 use axum::{
     Json, Router,
@@ -52,6 +52,11 @@ pub struct AppState {
     pub ipsec_mgr: Arc<ipsec::IpsecManager>,
     pub ntp_srv: Arc<ntp::NtpServer>,
     pub graph_store: Arc<graphs::GraphStore>,
+    pub hotspot_sessions: Arc<hotspot::SessionManager>,
+    pub hotspot_walled_garden: Arc<hotspot::WalledGarden>,
+    pub bgp_injector: Arc<routing::BgpRouteInjector>,
+    pub ospf_spf: Arc<routing::OspfSpf>,
+    pub lte_mgr: Arc<lte::ModemManager>,
     pub monitoring_tx: broadcast::Sender<String>,
 }
 
@@ -111,6 +116,11 @@ impl AppState {
             ipsec_mgr: Arc::new(ipsec::IpsecManager::new()),
             ntp_srv: Arc::new(ntp::NtpServer::new()),
             graph_store: Arc::new(graphs::GraphStore::new(288, 300)),
+            hotspot_sessions: Arc::new(hotspot::SessionManager::new()),
+            hotspot_walled_garden: Arc::new(hotspot::WalledGarden::new()),
+            bgp_injector: Arc::new(routing::BgpRouteInjector::new()),
+            ospf_spf: Arc::new(routing::OspfSpf::new()),
+            lte_mgr: Arc::new(lte::ModemManager::new()),
             monitoring_tx,
         }
     }
@@ -496,6 +506,51 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/api/v1/graphs",
             post(handlers::add_graph_datapoint),
+        )
+        .route(
+            "/api/v1/hotspot/sessions",
+            get(handlers::hotspot_list_sessions),
+        )
+        .route(
+            "/api/v1/hotspot/login",
+            post(handlers::hotspot_login),
+        )
+        .route(
+            "/api/v1/hotspot/logout/{id}",
+            post(handlers::hotspot_logout),
+        )
+        .route(
+            "/api/v1/hotspot/status",
+            get(handlers::hotspot_status),
+        )
+        .route(
+            "/api/v1/hotspot/walled-garden",
+            get(handlers::hotspot_walled_garden),
+        )
+        .route(
+            "/api/v1/bgp/inject",
+            post(handlers::bgp_inject_route),
+        )
+        .route(
+            "/api/v1/bgp/injected-routes",
+            get(handlers::bgp_list_injected),
+        )
+        .route("/api/v1/ospf/spf-run", post(handlers::ospf_run_spf))
+        .route(
+            "/api/v1/ospf/lsdb",
+            get(handlers::ospf_lsdb_status),
+        )
+        .route("/api/v1/lte/info", get(handlers::lte_info))
+        .route("/api/v1/lte/refresh", post(handlers::lte_refresh))
+        .route("/api/v1/lte/connect", post(handlers::lte_connect))
+        .route(
+            "/api/v1/lte/disconnect",
+            post(handlers::lte_disconnect),
+        )
+        .route("/api/v1/lte/config", get(handlers::lte_config))
+        .route(
+            "/api/v1/lte/config",
+            put(handlers::lte_set_config),
         )
         .with_state(state)
 }

@@ -1,16 +1,20 @@
 pub mod backend;
+pub mod bgp_inject;
 pub mod types;
 pub mod filters;
 pub mod filters_real;
+pub mod ospf_spf;
 #[cfg(feature = "real")]
 pub mod bgp_real;
 #[cfg(feature = "real")]
 pub mod ospf_real;
 
 pub use backend::*;
+pub use bgp_inject::*;
 pub use types::*;
 pub use filters::*;
 pub use filters_real::*;
+pub use ospf_spf::*;
 #[cfg(feature = "real")]
 pub use bgp_real::RealBgpBackend;
 #[cfg(feature = "real")]
