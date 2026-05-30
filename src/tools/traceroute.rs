@@ -84,14 +84,16 @@ fn parse_windows_tracert(output: &str) -> Vec<TracerouteHop> {
 
         let rtt_ms = parts
             .iter()
-            .find_map(|&p| {
+            .enumerate()
+            .skip(1)
+            .find_map(|(_, &p)| {
                 let cleaned = p.trim_end_matches("ms").trim();
                 if cleaned == "<1" {
                     Some(0.5f64)
                 } else if cleaned == "*" {
                     None
                 } else {
-                    cleaned.parse::<f64>().ok()
+                    cleaned.parse::<f64>().ok().filter(|&v| v > 0.0 && v < 3.0e7)
                 }
             })
             .unwrap_or(0.0);
@@ -144,12 +146,14 @@ fn parse_linux_traceroute(output: &str) -> Vec<TracerouteHop> {
 
         let rtt_ms = parts
             .iter()
-            .find_map(|&p| {
+            .enumerate()
+            .skip(1)
+            .find_map(|(_, &p)| {
                 let cleaned = p.trim_end_matches("ms").trim();
                 if cleaned == "*" {
                     None
                 } else {
-                    cleaned.parse::<f64>().ok()
+                    cleaned.parse::<f64>().ok().filter(|&v| v > 0.0 && v < 3.0e7)
                 }
             })
             .unwrap_or(0.0);

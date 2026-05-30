@@ -59,11 +59,16 @@ impl AddressListEntry {
 
     pub fn is_expired(&self) -> bool {
         if let Some(timeout) = self.timeout {
-            let elapsed = SystemTime::now()
+            let now = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_secs();
-            elapsed > self.created_at + timeout.as_secs()
+                .as_secs_f64();
+            let created = if timeout.is_zero() {
+                0.0
+            } else {
+                self.created_at as f64
+            };
+            now > created + timeout.as_secs_f64()
         } else {
             false
         }
