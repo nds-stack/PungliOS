@@ -1635,3 +1635,321 @@ pub(crate) async fn toggle_scheduler_task(
         Err(e) => err(e.to_string()),
     }
 }
+
+// ─── VRF ───────────────────────────────────────────────
+
+pub(crate) async fn list_vrfs(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.vrf_mgr.list_vrfs().await {
+        Ok(vrfs) => Json(serde_json::json!(vrfs)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn get_vrf(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.vrf_mgr.get_vrf(&name).await {
+        Ok(vrf) => Json(serde_json::json!(vrf)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn create_vrf(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let name = body["name"].as_str().unwrap_or("").to_string();
+    if name.is_empty() {
+        return err("VRF name is required".into());
+    }
+    let vrf = crate::vrf::VrfConfig {
+        name,
+        table_id: body["table_id"].as_u64().unwrap_or(0) as u32,
+        interfaces: vec![],
+        description: body["description"].as_str().map(|s| s.to_string()),
+        enabled: body["enabled"].as_bool().unwrap_or(true),
+    };
+    match s.vrf_mgr.create_vrf(&vrf).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn delete_vrf(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.vrf_mgr.delete_vrf(&name).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn add_vrf_interface(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let iface = body["interface"].as_str().unwrap_or("").to_string();
+    if iface.is_empty() {
+        return err("interface name is required".into());
+    }
+    match s.vrf_mgr.add_interface(&name, &iface).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn remove_vrf_interface(
+    State(s): State<AppState>,
+    Path((name, iface)): Path<(String, String)>,
+) -> Json<serde_json::Value> {
+    match s.vrf_mgr.remove_interface(&name, &iface).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+// ─── L2TP ──────────────────────────────────────────────
+
+pub(crate) async fn list_l2tp_tunnels(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.l2tp_mgr.list_tunnels().await {
+        Ok(tunnels) => Json(serde_json::json!(tunnels)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn get_l2tp_tunnel(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.l2tp_mgr.get_tunnel(&name).await {
+        Ok(tunnel) => Json(serde_json::json!(tunnel)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn create_l2tp_tunnel(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let name = body["name"].as_str().unwrap_or("").to_string();
+    if name.is_empty() {
+        return err("tunnel name is required".into());
+    }
+    let tunnel = crate::l2tp::L2tpTunnel {
+        name,
+        local_ip: body["local_ip"].as_str().unwrap_or("").to_string(),
+        remote_ip: body["remote_ip"].as_str().unwrap_or("").to_string(),
+        local_id: body["local_id"].as_u64().unwrap_or(1) as u32,
+        remote_id: body["remote_id"].as_u64().unwrap_or(2) as u32,
+        enabled: body["enabled"].as_bool().unwrap_or(true),
+        mtu: body["mtu"].as_u64().unwrap_or(1460) as u16,
+        description: body["description"].as_str().map(|s| s.to_string()),
+    };
+    match s.l2tp_mgr.create_tunnel(&tunnel).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn delete_l2tp_tunnel(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.l2tp_mgr.delete_tunnel(&name).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn l2tp_status(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.l2tp_mgr.get_status().await {
+        Ok(status) => Json(serde_json::json!(status)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+// ─── Netwatch ──────────────────────────────────────────
+
+pub(crate) async fn list_netwatch(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.netwatch_mgr.list()))
+}
+
+pub(crate) async fn get_netwatch(
+    State(s): State<AppState>,
+    Path(id): Path<u64>,
+) -> Json<serde_json::Value> {
+    match s.netwatch_mgr.get(id) {
+        Some(entry) => Json(serde_json::json!(entry)),
+        None => err(format!("netwatch {id} not found")),
+    }
+}
+
+pub(crate) async fn create_netwatch(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let name = body["name"].as_str().unwrap_or("").to_string();
+    if name.is_empty() {
+        return err("name is required".into());
+    }
+    let target = body["target"].as_str().unwrap_or("").to_string();
+    if target.is_empty() {
+        return err("target is required".into());
+    }
+    use crate::netwatch::{NetwatchAction, NetwatchEntry, NetwatchStatus};
+    let entry = NetwatchEntry {
+        id: 0,
+        name,
+        target,
+        interval_secs: body["interval"].as_u64().unwrap_or(30),
+        timeout_secs: body["timeout"].as_u64().unwrap_or(5),
+        retries: body["retries"].as_u64().unwrap_or(3) as u32,
+        action_up: None,
+        action_down: body["action_down"].as_str().map(|_| NetwatchAction::Log),
+        enabled: body["enabled"].as_bool().unwrap_or(true),
+        status: NetwatchStatus::Unknown,
+        last_up: None,
+        last_down: None,
+        consecutive_failures: 0,
+        response_time_ms: 0.0,
+    };
+    match s.netwatch_mgr.add(&entry) {
+        Ok(id) => Json(serde_json::json!({"id": id})),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn delete_netwatch(
+    State(s): State<AppState>,
+    Path(id): Path<u64>,
+) -> Json<serde_json::Value> {
+    match s.netwatch_mgr.remove(id) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn toggle_netwatch(
+    State(s): State<AppState>,
+    Path(id): Path<u64>,
+) -> Json<serde_json::Value> {
+    let enabled = s.netwatch_mgr.get(id).map(|e| !e.enabled).unwrap_or(false);
+    match s.netwatch_mgr.set_enabled(id, enabled) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn netwatch_down(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.netwatch_mgr.get_down()))
+}
+
+// ─── PCQ ───────────────────────────────────────────────
+
+pub(crate) async fn list_pcq_classes(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.pcq_mgr.list_classes()))
+}
+
+pub(crate) async fn add_pcq_class(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::bpf_qos::{PcqClass, PcqHashMethod};
+    let name = body["name"].as_str().unwrap_or("").to_string();
+    if name.is_empty() {
+        return err("PCQ class name is required".into());
+    }
+    let hash_methods: Vec<PcqHashMethod> = body["hash_methods"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| match v.as_str() {
+                    Some("src-address") => Some(PcqHashMethod::SrcAddress),
+                    Some("dst-address") => Some(PcqHashMethod::DstAddress),
+                    Some("src-port") => Some(PcqHashMethod::SrcPort),
+                    Some("dst-port") => Some(PcqHashMethod::DstPort),
+                    Some("both-addresses") => Some(PcqHashMethod::BothAddresses),
+                    _ => None,
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let class = PcqClass {
+        name,
+        interface: body["interface"].as_str().unwrap_or("").to_string(),
+        rate: body["rate"].as_u64().unwrap_or(10_000),
+        ceil: body["ceil"].as_u64().unwrap_or(100_000),
+        bucket_size: body["bucket_size"].as_u64().unwrap_or(16) as u32,
+        hash_methods,
+        enabled: body["enabled"].as_bool().unwrap_or(true),
+    };
+    match s.pcq_mgr.add_class(class) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn remove_pcq_class(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.pcq_mgr.remove_class(&name) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+// ─── SNMP ──────────────────────────────────────────────
+
+pub(crate) async fn get_snmp_config(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.snmp_agent.get_config()))
+}
+
+pub(crate) async fn update_snmp_config(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::snmp::SnmpConfig;
+    let config = SnmpConfig {
+        enabled: body["enabled"].as_bool().unwrap_or(false),
+        community_ro: body["community_ro"].as_str().unwrap_or("public").to_string(),
+        community_rw: body["community_rw"].as_str().unwrap_or("private").to_string(),
+        system_name: body["system_name"].as_str().unwrap_or("PungliOS").to_string(),
+        system_location: body["system_location"].as_str().unwrap_or("Unknown").to_string(),
+        system_contact: body["system_contact"].as_str().unwrap_or("admin@punglios.local").to_string(),
+        listen_port: body["listen_port"].as_u64().unwrap_or(161) as u16,
+        allowed_networks: vec![],
+    };
+    match s.snmp_agent.set_config(config) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn get_mib_entries(State(_s): State<AppState>) -> Json<serde_json::Value> {
+    use crate::snmp::mib::mib2::Mib2;
+    use crate::snmp::mib::private::PungliOSMib;
+    let mut entries: Vec<serde_json::Value> = Mib2::all()
+        .into_iter()
+        .map(|e| {
+            serde_json::json!({
+                "oid": e.oid,
+                "name": e.name,
+                "type": e.r#type,
+                "value": e.value,
+            })
+        })
+        .collect();
+    for entry in PungliOSMib::entries() {
+        entries.push(serde_json::json!({
+            "oid": entry.oid,
+            "name": entry.name,
+            "description": entry.description,
+            "type": entry.r#type,
+        }));
+    }
+    Json(serde_json::json!(entries))
+}

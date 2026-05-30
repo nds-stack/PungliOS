@@ -5,8 +5,8 @@ pub(crate) mod monitoring;
 
 use crate::traits::MockBackend;
 use crate::{
-    address_list, billing, bonding, bpf_qos, conntrack, dhcp_client, firewall, net, plugins,
-    pppoe, qos, routing, scheduler, tenancy, user, vrrp, wireguard,
+    address_list, billing, bonding, bpf_qos, conntrack, dhcp_client, firewall, l2tp, net,
+    netwatch, plugins, pppoe, qos, routing, scheduler, snmp, tenancy, user, vrf, vrrp, wireguard,
 };
 use axum::{
     Json, Router,
@@ -43,6 +43,11 @@ pub struct AppState {
     pub bond_mgr: Arc<bonding::BondingManager<bonding::MockBondingBackend>>,
     pub route_filter_mgr: Arc<routing::RouteFilterManager>,
     pub bridge_vlan_mgr: Arc<net::bridge_vlan::BridgeVlanManager>,
+    pub vrf_mgr: Arc<vrf::VrfManager<vrf::MockVrfBackend>>,
+    pub l2tp_mgr: Arc<l2tp::L2tpManager<l2tp::MockL2tpBackend>>,
+    pub netwatch_mgr: Arc<netwatch::NetwatchManager>,
+    pub pcq_mgr: Arc<bpf_qos::PcqManager>,
+    pub snmp_agent: Arc<snmp::SnmpAgent>,
     pub monitoring_tx: broadcast::Sender<String>,
 }
 
@@ -94,6 +99,11 @@ impl AppState {
             )),
             route_filter_mgr: Arc::new(routing::RouteFilterManager::new()),
             bridge_vlan_mgr: Arc::new(net::bridge_vlan::BridgeVlanManager::new()),
+            vrf_mgr: Arc::new(vrf::VrfManager::new(vrf::MockVrfBackend::new())),
+            l2tp_mgr: Arc::new(l2tp::L2tpManager::new(l2tp::MockL2tpBackend::new())),
+            netwatch_mgr: Arc::new(netwatch::NetwatchManager::new()),
+            pcq_mgr: Arc::new(bpf_qos::PcqManager::new()),
+            snmp_agent: Arc::new(snmp::SnmpAgent::new()),
             monitoring_tx,
         }
     }
@@ -395,6 +405,56 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/bridge-vlan/{bridge}/{port}/{vlan}",
             delete(handlers::remove_bridge_vlan),
         )
+        .route("/api/v1/vrf", get(handlers::list_vrfs))
+        .route("/api/v1/vrf", post(handlers::create_vrf))
+        .route("/api/v1/vrf/{name}", get(handlers::get_vrf))
+        .route("/api/v1/vrf/{name}", delete(handlers::delete_vrf))
+        .route(
+            "/api/v1/vrf/{name}/interfaces",
+            post(handlers::add_vrf_interface),
+        )
+        .route(
+            "/api/v1/vrf/{name}/interfaces/{iface}",
+            delete(handlers::remove_vrf_interface),
+        )
+        .route("/api/v1/l2tp/tunnels", get(handlers::list_l2tp_tunnels))
+        .route("/api/v1/l2tp/tunnels", post(handlers::create_l2tp_tunnel))
+        .route(
+            "/api/v1/l2tp/tunnels/{name}",
+            get(handlers::get_l2tp_tunnel),
+        )
+        .route(
+            "/api/v1/l2tp/tunnels/{name}",
+            delete(handlers::delete_l2tp_tunnel),
+        )
+        .route("/api/v1/l2tp/status", get(handlers::l2tp_status))
+        .route("/api/v1/netwatch", get(handlers::list_netwatch))
+        .route("/api/v1/netwatch", post(handlers::create_netwatch))
+        .route("/api/v1/netwatch/{id}", get(handlers::get_netwatch))
+        .route("/api/v1/netwatch/{id}", delete(handlers::delete_netwatch))
+        .route(
+            "/api/v1/netwatch/{id}/toggle",
+            post(handlers::toggle_netwatch),
+        )
+        .route("/api/v1/netwatch/down", get(handlers::netwatch_down))
+        .route(
+            "/api/v1/bpf-qos/pcq",
+            get(handlers::list_pcq_classes),
+        )
+        .route(
+            "/api/v1/bpf-qos/pcq",
+            post(handlers::add_pcq_class),
+        )
+        .route(
+            "/api/v1/bpf-qos/pcq/{name}",
+            delete(handlers::remove_pcq_class),
+        )
+        .route("/api/v1/snmp/config", get(handlers::get_snmp_config))
+        .route(
+            "/api/v1/snmp/config",
+            put(handlers::update_snmp_config),
+        )
+        .route("/api/v1/snmp/mib", get(handlers::get_mib_entries))
         .with_state(state)
 }
 
