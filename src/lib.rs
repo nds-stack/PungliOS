@@ -12,6 +12,7 @@ extern crate tokio_test;
 pub mod address_list;
 pub mod api;
 pub mod billing;
+pub mod bonding;
 pub mod bpf_qos;
 pub mod cli;
 pub mod config;

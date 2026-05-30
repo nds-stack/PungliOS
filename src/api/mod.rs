@@ -5,8 +5,8 @@ pub(crate) mod monitoring;
 
 use crate::traits::MockBackend;
 use crate::{
-    address_list, billing, bpf_qos, conntrack, dhcp_client, firewall, net, plugins, pppoe, qos,
-    routing, scheduler, tenancy, user, vrrp, wireguard,
+    address_list, billing, bonding, bpf_qos, conntrack, dhcp_client, firewall, net, plugins,
+    pppoe, qos, routing, scheduler, tenancy, user, vrrp, wireguard,
 };
 use axum::{
     Json, Router,
@@ -40,6 +40,9 @@ pub struct AppState {
     pub address_list_mgr: Arc<address_list::AddressListManager>,
     pub dhcp_client_mgr: Arc<dhcp_client::DhcpClientManager<dhcp_client::MockDhcpClient>>,
     pub scheduler_mgr: Arc<scheduler::ScheduledTaskManager>,
+    pub bond_mgr: Arc<bonding::BondingManager<bonding::MockBondingBackend>>,
+    pub route_filter_mgr: Arc<routing::RouteFilterManager>,
+    pub bridge_vlan_mgr: Arc<net::bridge_vlan::BridgeVlanManager>,
     pub monitoring_tx: broadcast::Sender<String>,
 }
 
@@ -86,6 +89,11 @@ impl AppState {
                 dhcp_client::MockDhcpClient,
             )),
             scheduler_mgr: Arc::new(scheduler::ScheduledTaskManager::new()),
+            bond_mgr: Arc::new(bonding::BondingManager::new(
+                bonding::MockBondingBackend::new(),
+            )),
+            route_filter_mgr: Arc::new(routing::RouteFilterManager::new()),
+            bridge_vlan_mgr: Arc::new(net::bridge_vlan::BridgeVlanManager::new()),
             monitoring_tx,
         }
     }
@@ -311,6 +319,81 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/api/v1/scheduler/tasks/{id}/toggle",
             post(handlers::toggle_scheduler_task),
+        )
+        .route("/api/v1/bonding/bonds", get(handlers::list_bonds))
+        .route("/api/v1/bonding/bonds", post(handlers::create_bond))
+        .route(
+            "/api/v1/bonding/bonds/{name}",
+            get(handlers::get_bond),
+        )
+        .route(
+            "/api/v1/bonding/bonds/{name}",
+            delete(handlers::delete_bond),
+        )
+        .route(
+            "/api/v1/bonding/bonds/{name}/slaves",
+            post(handlers::add_bond_slave),
+        )
+        .route(
+            "/api/v1/bonding/bonds/{name}/slaves/{slave}",
+            delete(handlers::remove_bond_slave),
+        )
+        .route("/api/v1/bonding/status", get(handlers::bond_status))
+        .route(
+            "/api/v1/routing/filters/prefix-lists",
+            get(handlers::list_prefix_lists),
+        )
+        .route(
+            "/api/v1/routing/filters/prefix-lists",
+            post(handlers::add_prefix_list_entry),
+        )
+        .route(
+            "/api/v1/routing/filters/prefix-lists/{name}",
+            get(handlers::get_prefix_list),
+        )
+        .route(
+            "/api/v1/routing/filters/prefix-lists/{name}",
+            delete(handlers::remove_prefix_list),
+        )
+        .route(
+            "/api/v1/routing/filters/as-path",
+            get(handlers::list_as_path_filters),
+        )
+        .route(
+            "/api/v1/routing/filters/as-path",
+            post(handlers::add_as_path_filter),
+        )
+        .route(
+            "/api/v1/routing/filters/route-maps",
+            get(handlers::list_route_maps),
+        )
+        .route(
+            "/api/v1/routing/filters/route-maps",
+            post(handlers::add_route_map_entry),
+        )
+        .route(
+            "/api/v1/routing/filters/route-maps/{name}",
+            get(handlers::get_route_map),
+        )
+        .route(
+            "/api/v1/routing/filters/route-maps/{name}",
+            delete(handlers::remove_route_map),
+        )
+        .route(
+            "/api/v1/bridge-vlan",
+            get(handlers::list_all_bridge_vlans),
+        )
+        .route(
+            "/api/v1/bridge-vlan",
+            post(handlers::add_bridge_vlan),
+        )
+        .route(
+            "/api/v1/bridge-vlan/{bridge}",
+            get(handlers::list_bridge_vlans),
+        )
+        .route(
+            "/api/v1/bridge-vlan/{bridge}/{port}/{vlan}",
+            delete(handlers::remove_bridge_vlan),
         )
         .with_state(state)
 }

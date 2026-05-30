@@ -1,8 +1,18 @@
 pub mod backend;
 pub mod types;
+pub mod filters;
+#[cfg(feature = "real")]
+pub mod bgp_real;
+#[cfg(feature = "real")]
+pub mod ospf_real;
 
 pub use backend::*;
 pub use types::*;
+pub use filters::*;
+#[cfg(feature = "real")]
+pub use bgp_real::RealBgpBackend;
+#[cfg(feature = "real")]
+pub use ospf_real::RealOspfBackend;
 
 use anyhow::Result;
 

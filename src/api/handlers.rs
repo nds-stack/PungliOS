@@ -256,7 +256,337 @@ pub(crate) async fn add_route(
                 Err(e) => err(e.to_string()),
             }
         }
-        Err(e) => err(format!("invalid destination: {e}")),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+// ─── Bonding ───────────────────────────────────────────
+
+pub(crate) async fn list_bonds(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.bond_mgr.list_bonds().await {
+        Ok(bonds) => Json(serde_json::json!(bonds)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn get_bond(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.bond_mgr.get_bond(&name).await {
+        Ok(bond) => Json(serde_json::json!(bond)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn create_bond(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let name = body["name"].as_str().unwrap_or("").to_string();
+    if name.is_empty() {
+        return err("bond name is required".into());
+    }
+    let mode_str = body["mode"].as_str().unwrap_or("active-backup");
+    let mode = crate::bonding::BondMode::from_str(mode_str).unwrap_or(crate::bonding::BondMode::ActiveBackup);
+    let slaves: Vec<String> = body["slaves"]
+        .as_array()
+        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+        .unwrap_or_default();
+    let bond = crate::bonding::BondInterface {
+        name,
+        mode,
+        slaves,
+        mtu: body["mtu"].as_u64().unwrap_or(1500) as u16,
+        lacp_rate: None,
+        min_links: body["min_links"].as_u64().map(|v| v as u32),
+        miimon: body["miimon"].as_u64().map(|v| v as u32).or(Some(100)),
+        updelay: body["updelay"].as_u64().map(|v| v as u32),
+        downdelay: body["downdelay"].as_u64().map(|v| v as u32),
+        enabled: body["enabled"].as_bool().unwrap_or(true),
+        addresses: vec![],
+    };
+    match s.bond_mgr.create_bond(&bond).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn delete_bond(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.bond_mgr.delete_bond(&name).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn add_bond_slave(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let slave = body["slave"].as_str().unwrap_or("").to_string();
+    if slave.is_empty() {
+        return err("slave name is required".into());
+    }
+    match s.bond_mgr.add_slave(&name, &slave).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn remove_bond_slave(
+    State(s): State<AppState>,
+    Path((name, slave)): Path<(String, String)>,
+) -> Json<serde_json::Value> {
+    match s.bond_mgr.remove_slave(&name, &slave).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn bond_status(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.bond_mgr.get_status().await {
+        Ok(status) => Json(serde_json::json!(status)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+// ─── Route Filters ─────────────────────────────────────
+
+pub(crate) async fn list_prefix_lists(
+    State(s): State<AppState>,
+) -> Json<serde_json::Value> {
+    let names = s.route_filter_mgr.list_prefix_lists();
+    let mut result = Vec::new();
+    for name in &names {
+        let entries = s.route_filter_mgr.get_prefix_list(name);
+        result.push(serde_json::json!({
+            "name": name,
+            "entries": entries,
+        }));
+    }
+    Json(serde_json::json!(result))
+}
+
+pub(crate) async fn add_prefix_list_entry(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::routing::{PrefixListAction, PrefixListEntry};
+    let name = body["name"].as_str().unwrap_or("").to_string();
+    if name.is_empty() {
+        return err("prefix list name is required".into());
+    }
+    let action = match body["action"].as_str().unwrap_or("permit") {
+        "deny" => PrefixListAction::Deny,
+        _ => PrefixListAction::Permit,
+    };
+    let entry = PrefixListEntry {
+        name: name.clone(),
+        seq: body["seq"].as_u64().unwrap_or(10) as u32,
+        action,
+        prefix: body["prefix"].as_str().unwrap_or("0.0.0.0/0").to_string(),
+        ge: body["ge"].as_u64().map(|v| v as u8),
+        le: body["le"].as_u64().map(|v| v as u8),
+        description: body["description"].as_str().map(|s| s.to_string()),
+    };
+    match s.route_filter_mgr.add_prefix_list_entry(entry) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn get_prefix_list(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    let entries = s.route_filter_mgr.get_prefix_list(&name);
+    Json(serde_json::json!(entries))
+}
+
+pub(crate) async fn remove_prefix_list(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.route_filter_mgr.remove_prefix_list(&name) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn list_as_path_filters(
+    State(s): State<AppState>,
+) -> Json<serde_json::Value> {
+    let filters = s.route_filter_mgr.list_as_path_filters();
+    Json(serde_json::json!(filters))
+}
+
+pub(crate) async fn add_as_path_filter(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::routing::{AsPathFilter, AsPathMatch, PrefixListAction};
+    let name = body["name"].as_str().unwrap_or("").to_string();
+    if name.is_empty() {
+        return err("AS path filter name is required".into());
+    }
+    let match_type = match body["match"].as_str().unwrap_or("any") {
+        "exact" => {
+            let path: Vec<u32> = body["as_path"]
+                .as_array()
+                .map(|arr| arr.iter().filter_map(|v| v.as_u64().map(|n| n as u32)).collect())
+                .unwrap_or_default();
+            AsPathMatch::Exact(path)
+        }
+        _ => AsPathMatch::Any,
+    };
+    let action = match body["action"].as_str().unwrap_or("permit") {
+        "deny" => PrefixListAction::Deny,
+        _ => PrefixListAction::Permit,
+    };
+    let filter = AsPathFilter { name, match_type, action };
+    match s.route_filter_mgr.add_as_path_filter(filter) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn list_route_maps(State(s): State<AppState>) -> Json<serde_json::Value> {
+    let names = s.route_filter_mgr.list_route_maps();
+    let mut result = Vec::new();
+    for name in &names {
+        let entries = s.route_filter_mgr.get_route_map(name);
+        result.push(serde_json::json!({
+            "name": name,
+            "entries": entries,
+        }));
+    }
+    Json(serde_json::json!(result))
+}
+
+pub(crate) async fn add_route_map_entry(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::routing::{PrefixListAction, RouteMapEntry, SetAction};
+    let name = body["name"].as_str().unwrap_or("").to_string();
+    if name.is_empty() {
+        return err("route-map name is required".into());
+    }
+    let action = match body["action"].as_str().unwrap_or("permit") {
+        "deny" => PrefixListAction::Deny,
+        _ => PrefixListAction::Permit,
+    };
+    let mut set_actions = Vec::new();
+    if let Some(lp) = body["set_local_pref"].as_u64() {
+        set_actions.push(SetAction::LocalPref(lp as u32));
+    }
+    if let Some(metric) = body["set_metric"].as_u64() {
+        set_actions.push(SetAction::Metric(metric as u32));
+    }
+    if let Some(asn) = body["set_as_path_prepend"].as_u64() {
+        set_actions.push(SetAction::AsPathPrepend(asn as u32));
+    }
+    let entry = RouteMapEntry {
+        name: name.clone(),
+        seq: body["seq"].as_u64().unwrap_or(10) as u32,
+        action,
+        match_prefix_list: body["match_prefix_list"].as_str().map(|s| s.to_string()),
+        match_as_path: body["match_as_path"].as_str().map(|s| s.to_string()),
+        match_community: body["match_community"].as_str().map(|s| s.to_string()),
+        match_metric: body["match_metric"].as_u64().map(|v| v as u32),
+        set_actions,
+        description: body["description"].as_str().map(|s| s.to_string()),
+    };
+    match s.route_filter_mgr.add_route_map_entry(entry) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn get_route_map(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    let entries = s.route_filter_mgr.get_route_map(&name);
+    Json(serde_json::json!(entries))
+}
+
+pub(crate) async fn remove_route_map(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.route_filter_mgr.remove_route_map(&name) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+// ─── Bridge VLAN ───────────────────────────────────────
+
+pub(crate) async fn list_all_bridge_vlans(
+    State(s): State<AppState>,
+) -> Json<serde_json::Value> {
+    let entries = s.bridge_vlan_mgr.list_all();
+    Json(serde_json::json!(entries))
+}
+
+pub(crate) async fn list_bridge_vlans(
+    State(s): State<AppState>,
+    Path(bridge): Path<String>,
+) -> Json<serde_json::Value> {
+    let entries = s.bridge_vlan_mgr.list(&bridge);
+    Json(serde_json::json!(entries))
+}
+
+pub(crate) async fn add_bridge_vlan(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::net::bridge_vlan::{BridgeVlanEntry, VlanFilterMode};
+    let bridge = body["bridge"].as_str().unwrap_or("").to_string();
+    let port = body["port"].as_str().unwrap_or("").to_string();
+    let vlan_id = body["vlan_id"].as_u64().unwrap_or(0) as u16;
+    let mode = match body["mode"].as_str().unwrap_or("trunk") {
+        "access" => VlanFilterMode::Access,
+        _ => VlanFilterMode::Trunk,
+    };
+    let tagged = body["tagged"].as_bool().unwrap_or(true);
+    let pvid = body["pvid"].as_bool().unwrap_or(false);
+    let untagged_vlans: Vec<u16> = body["untagged_vlans"]
+        .as_array()
+        .map(|arr| arr.iter().filter_map(|v| v.as_u64().map(|n| n as u16)).collect())
+        .unwrap_or_default();
+    let tagged_vlans: Vec<u16> = body["tagged_vlans"]
+        .as_array()
+        .map(|arr| arr.iter().filter_map(|v| v.as_u64().map(|n| n as u16)).collect())
+        .unwrap_or_default();
+    let entry = BridgeVlanEntry {
+        bridge,
+        port,
+        mode,
+        vlan_id,
+        tagged,
+        pvid,
+        untagged_vlans,
+        tagged_vlans,
+    };
+    match s.bridge_vlan_mgr.add(entry) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn remove_bridge_vlan(
+    State(s): State<AppState>,
+    Path((bridge, port, vlan)): Path<(String, String, u16)>,
+) -> Json<serde_json::Value> {
+    match s.bridge_vlan_mgr.remove(&bridge, &port, vlan) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
     }
 }
 

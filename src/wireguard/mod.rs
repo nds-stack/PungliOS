@@ -1,8 +1,12 @@
 pub mod backend;
 pub mod types;
+#[cfg(feature = "real")]
+pub mod real;
 
 pub use backend::*;
 pub use types::*;
+#[cfg(feature = "real")]
+pub use real::RealWireguardBackend;
 
 use anyhow::Result;
 
