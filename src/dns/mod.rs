@@ -1,4 +1,7 @@
+pub use doh::*;
 pub mod doh;
+pub use r#static::*;
+pub mod r#static;
 pub mod types;
 
 use anyhow::Result;

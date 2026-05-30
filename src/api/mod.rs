@@ -5,9 +5,9 @@ pub(crate) mod monitoring;
 
 use crate::traits::MockBackend;
 use crate::{
-    address_list, billing, bonding, bpf_qos, conntrack, dhcp_client, firewall, graphs, hotspot,
-    ipsec, l2tp, lte, net, netwatch, ntp, plugins, pppoe, qos, routing, scheduler, snmp, tenancy,
-    user, vrf, vrrp, wireguard,
+    address_list, billing, bonding, bpf_qos, bridge, conntrack, dhcp, dhcp_client, dns, firewall,
+    graphs, hotspot, ipsec, ipv6, l2tp, lldp, lte, net, netwatch, ntp, plugins, pppoe, qos,
+    routing, scheduler, snmp, tenancy, tools, traffic_flow, tunnel, user, vrf, vrrp, wireguard,
 };
 use axum::{
     Json, Router,
@@ -57,6 +57,24 @@ pub struct AppState {
     pub bgp_injector: Arc<routing::BgpRouteInjector>,
     pub ospf_spf: Arc<routing::OspfSpf>,
     pub lte_mgr: Arc<lte::ModemManager>,
+    pub ipv6_dhcp_mgr: Arc<ipv6::Dhcpv6Manager<ipv6::MockDhcpv6Backend>>,
+    pub ipv6_radvd_mgr: Arc<ipv6::RadvdManager>,
+    pub ipv6_firewall: Arc<ipv6::Ipv6Firewall>,
+    pub dhcp_relay_mgr: Arc<dhcp::relay::DhcpRelayManager>,
+    pub dhcp_snooping: Arc<dhcp::snooping::DhcpSnooping>,
+    pub igmp_snooping: Arc<bridge::igmp::IgmpSnooping>,
+    pub bridge_stp_mgr: Arc<bridge::stp::StpManager>,
+    pub bridge_acl: Arc<bridge::filter::BridgeAcl>,
+    pub lldp_agent: Arc<lldp::LldpAgent>,
+    pub bfd_mgr: Arc<routing::BfdManager>,
+    pub dns_static_mgr: Arc<dns::DnsStaticManager>,
+    pub ntp_client: Arc<ntp::NtpClient>,
+    pub mangle_table: Arc<firewall::MangleTable>,
+    pub pbr_mgr: Arc<routing::PbrManager>,
+    pub eoip_mgr: Arc<tunnel::EoipManager>,
+    pub gre_mgr: Arc<tunnel::GreManager>,
+    pub flow_exporter: Arc<traffic_flow::FlowExporter>,
+    pub wol_mgr: Arc<tools::WolManager>,
     pub monitoring_tx: broadcast::Sender<String>,
 }
 
@@ -121,6 +139,24 @@ impl AppState {
             bgp_injector: Arc::new(routing::BgpRouteInjector::new()),
             ospf_spf: Arc::new(routing::OspfSpf::new()),
             lte_mgr: Arc::new(lte::ModemManager::new()),
+            ipv6_dhcp_mgr: Arc::new(ipv6::Dhcpv6Manager::new(ipv6::MockDhcpv6Backend::new())),
+            ipv6_radvd_mgr: Arc::new(ipv6::RadvdManager::new()),
+            ipv6_firewall: Arc::new(ipv6::Ipv6Firewall::new()),
+            dhcp_relay_mgr: Arc::new(dhcp::relay::DhcpRelayManager::new()),
+            dhcp_snooping: Arc::new(dhcp::snooping::DhcpSnooping::new()),
+            igmp_snooping: Arc::new(bridge::igmp::IgmpSnooping::new()),
+            bridge_stp_mgr: Arc::new(bridge::stp::StpManager::new()),
+            bridge_acl: Arc::new(bridge::filter::BridgeAcl::new()),
+            lldp_agent: Arc::new(lldp::LldpAgent::new()),
+            bfd_mgr: Arc::new(routing::BfdManager::new()),
+            dns_static_mgr: Arc::new(crate::dns::DnsStaticManager::new()),
+            ntp_client: Arc::new(ntp::NtpClient::new()),
+            mangle_table: Arc::new(firewall::MangleTable::new()),
+            pbr_mgr: Arc::new(routing::PbrManager::new()),
+            eoip_mgr: Arc::new(tunnel::EoipManager::new()),
+            gre_mgr: Arc::new(tunnel::GreManager::new()),
+            flow_exporter: Arc::new(traffic_flow::FlowExporter::new()),
+            wol_mgr: Arc::new(tools::WolManager::new()),
             monitoring_tx,
         }
     }
@@ -551,6 +587,126 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/api/v1/lte/config",
             put(handlers::lte_set_config),
+        )
+        .route("/api/v1/ipv6/dhcp/pd", post(handlers::ipv6_dhcp_request_pd))
+        .route("/api/v1/ipv6/radvd", get(handlers::ipv6_radvd_list))
+        .route("/api/v1/ipv6/radvd", post(handlers::ipv6_radvd_add))
+        .route(
+            "/api/v1/ipv6/firewall",
+            get(handlers::ipv6_firewall_list),
+        )
+        .route(
+            "/api/v1/ipv6/firewall",
+            post(handlers::ipv6_firewall_add),
+        )
+        .route("/api/v1/dhcp/relay", get(handlers::dhcp_relay_list))
+        .route("/api/v1/dhcp/relay", post(handlers::dhcp_relay_add))
+        .route(
+            "/api/v1/dhcp/relay/{name}",
+            delete(handlers::dhcp_relay_remove),
+        )
+        .route(
+            "/api/v1/dhcp/snooping",
+            get(handlers::dhcp_snooping_list),
+        )
+        .route(
+            "/api/v1/dhcp/snooping",
+            post(handlers::dhcp_snooping_set),
+        )
+        .route("/api/v1/bridge/igmp", get(handlers::igmp_list))
+        .route("/api/v1/bridge/igmp", post(handlers::igmp_set_enabled))
+        .route("/api/v1/bridge/stp", get(handlers::stp_list))
+        .route("/api/v1/bridge/stp/{bridge}", get(handlers::stp_get))
+        .route("/api/v1/bridge/stp", post(handlers::stp_set))
+        .route("/api/v1/bridge/acl", get(handlers::bridge_acl_list))
+        .route("/api/v1/bridge/acl", post(handlers::bridge_acl_add))
+        .route(
+            "/api/v1/bridge/acl/{idx}",
+            delete(handlers::bridge_acl_remove),
+        )
+        .route("/api/v1/lldp/neighbors", get(handlers::lldp_neighbors))
+        .route("/api/v1/routing/bfd", get(handlers::bfd_list))
+        .route("/api/v1/routing/bfd", post(handlers::bfd_add))
+        .route(
+            "/api/v1/routing/bfd/{neighbor}",
+            delete(handlers::bfd_remove),
+        )
+        .route(
+            "/api/v1/routing/bfd/status/{neighbor}",
+            get(handlers::bfd_status),
+        )
+        .route(
+            "/api/v1/dns/static",
+            get(handlers::dns_static_list),
+        )
+        .route(
+            "/api/v1/dns/static",
+            post(handlers::dns_static_add),
+        )
+        .route(
+            "/api/v1/dns/static/{name}",
+            delete(handlers::dns_static_remove),
+        )
+        .route("/api/v1/ntp/client", get(handlers::ntp_client_config))
+        .route(
+            "/api/v1/ntp/client",
+            put(handlers::ntp_client_set_config),
+        )
+        .route(
+            "/api/v1/ntp/client/sync",
+            post(handlers::ntp_client_sync),
+        )
+        .route(
+            "/api/v1/firewall/mangle",
+            get(handlers::mangle_list),
+        )
+        .route(
+            "/api/v1/firewall/mangle",
+            post(handlers::mangle_add),
+        )
+        .route(
+            "/api/v1/firewall/mangle/{idx}",
+            delete(handlers::mangle_remove),
+        )
+        .route("/api/v1/routing/pbr", get(handlers::pbr_list))
+        .route("/api/v1/routing/pbr", post(handlers::pbr_add))
+        .route(
+            "/api/v1/routing/pbr/{idx}",
+            delete(handlers::pbr_remove),
+        )
+        .route("/api/v1/tunnel/eoip", get(handlers::eoip_list))
+        .route("/api/v1/tunnel/eoip", post(handlers::eoip_create))
+        .route(
+            "/api/v1/tunnel/eoip/{name}",
+            delete(handlers::eoip_delete),
+        )
+        .route("/api/v1/tunnel/gre", get(handlers::gre_list))
+        .route("/api/v1/tunnel/gre", post(handlers::gre_create))
+        .route(
+            "/api/v1/tunnel/gre/{name}",
+            delete(handlers::gre_delete),
+        )
+        .route(
+            "/api/v1/traffic-flow/status",
+            get(handlers::flow_status),
+        )
+        .route(
+            "/api/v1/traffic-flow/records",
+            get(handlers::flow_records),
+        )
+        .route(
+            "/api/v1/traffic-flow/clear",
+            post(handlers::flow_clear),
+        )
+        .route("/api/v1/tools/wol", get(handlers::wol_list))
+        .route("/api/v1/tools/wol", post(handlers::wol_add))
+        .route(
+            "/api/v1/tools/wol/{name}",
+            delete(handlers::wol_remove),
+        )
+        .route(
+            "/api/v1/tools/wol/wake/{mac}",
+            post(handlers::wol_wake),
         )
         .with_state(state)
 }

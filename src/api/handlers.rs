@@ -2237,3 +2237,512 @@ pub(crate) async fn lte_set_config(
         Err(e) => err(e.to_string()),
     }
 }
+
+// ─── IPv6 DHCP ────────────────────────────────────────
+
+pub(crate) async fn ipv6_dhcp_request_pd(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::ipv6::Dhcpv6PdConfig;
+    let config = Dhcpv6PdConfig {
+        interface: body["interface"].as_str().unwrap_or("").to_string(),
+        enabled: true,
+        prefix_hint: body["prefix_hint"].as_str().unwrap_or("::/48").to_string(),
+        prefix_length: body["prefix_length"].as_u64().unwrap_or(48) as u8,
+        delegated_prefix: None,
+        rapid_commit: true,
+    };
+    match s.ipv6_dhcp_mgr.request_pd(&config).await {
+        Ok(prefix) => Json(serde_json::json!({"prefix": prefix})),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn ipv6_radvd_list(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.ipv6_radvd_mgr.list().await))
+}
+
+pub(crate) async fn ipv6_radvd_add(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::ipv6::RouterAdvertisement;
+    let ra = RouterAdvertisement {
+        interface: body["interface"].as_str().unwrap_or("").to_string(),
+        enabled: body["enabled"].as_bool().unwrap_or(true),
+        managed: body["managed"].as_bool().unwrap_or(false),
+        other_config: false,
+        mtu: body["mtu"].as_u64().unwrap_or(1500) as u16,
+        reachable_time: 0,
+        retrans_timer: 0,
+        cur_hop_limit: 64,
+        prefix: body["prefix"].as_str().unwrap_or("2001:db8::").to_string(),
+        prefix_length: body["prefix_length"].as_u64().unwrap_or(64) as u8,
+        preferred_lifetime: 604800,
+        valid_lifetime: 2592000,
+        dns_servers: vec![],
+    };
+    match s.ipv6_radvd_mgr.add(ra).await {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn ipv6_firewall_list(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.ipv6_firewall.list_rules()))
+}
+
+pub(crate) async fn ipv6_firewall_add(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::ipv6::Ipv6FirewallRule;
+    let rule = Ipv6FirewallRule {
+        chain: body["chain"].as_str().unwrap_or("input").to_string(),
+        action: body["action"].as_str().unwrap_or("accept").to_string(),
+        src_addr: body["src_addr"].as_str().map(|s| s.to_string()),
+        dst_addr: body["dst_addr"].as_str().map(|s| s.to_string()),
+        protocol: body["protocol"].as_str().map(|s| s.to_string()),
+        src_port: body["src_port"].as_u64().map(|v| v as u16),
+        dst_port: body["dst_port"].as_u64().map(|v| v as u16),
+        hop_limit: body["hop_limit"].as_u64().map(|v| v as u8),
+        flow_label: body["flow_label"].as_u64().map(|v| v as u32),
+        icmp_type: body["icmp_type"].as_u64().map(|v| v as u8),
+        enabled: body["enabled"].as_bool().unwrap_or(true),
+    };
+    s.ipv6_firewall.add_rule(rule);
+    ok()
+}
+
+pub(crate) async fn dhcp_relay_list(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.dhcp_relay_mgr.list()))
+}
+
+pub(crate) async fn dhcp_relay_add(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::dhcp::relay::DhcpRelayConfig;
+    let server_str = body["server"].as_str().unwrap_or("0.0.0.0");
+    let server: std::net::Ipv4Addr = match server_str.parse() {
+        Ok(a) => a,
+        Err(_) => return err("invalid server IP".into()),
+    };
+    let relay = DhcpRelayConfig {
+        name: body["name"].as_str().unwrap_or("").to_string(),
+        interfaces: body["interfaces"]
+            .as_array()
+            .map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+            .unwrap_or_default(),
+        server,
+        enabled: body["enabled"].as_bool().unwrap_or(true),
+    };
+    match s.dhcp_relay_mgr.add(relay) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn dhcp_relay_remove(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.dhcp_relay_mgr.remove(&name) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn dhcp_snooping_list(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.dhcp_snooping.list()))
+}
+
+pub(crate) async fn dhcp_snooping_set(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::dhcp::snooping::DhcpSnoopingConfig;
+    let config = DhcpSnoopingConfig {
+        bridge: body["bridge"].as_str().unwrap_or("").to_string(),
+        enabled: body["enabled"].as_bool().unwrap_or(true),
+        trusted_ports: body["trusted_ports"]
+            .as_array()
+            .map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+            .unwrap_or_default(),
+        verify_mac: body["verify_mac"].as_bool().unwrap_or(true),
+    };
+    s.dhcp_snooping.set(config);
+    ok()
+}
+
+pub(crate) async fn igmp_list(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.igmp_snooping.list_groups()))
+}
+
+pub(crate) async fn igmp_set_enabled(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let enabled = body["enabled"].as_bool().unwrap_or(false);
+    s.igmp_snooping.set_enabled(enabled);
+    ok()
+}
+
+pub(crate) async fn stp_list(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.bridge_stp_mgr.list()))
+}
+
+pub(crate) async fn stp_get(
+    State(s): State<AppState>,
+    Path(bridge): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.bridge_stp_mgr.get(&bridge) {
+        Some(c) => Json(serde_json::json!(c)),
+        None => err(format!("STP not configured for {bridge}")),
+    }
+}
+
+pub(crate) async fn stp_set(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::bridge::stp::{StpConfig, StpMode};
+    let mode_str = body["mode"].as_str().unwrap_or("rstp");
+    let mode = match mode_str {
+        "stp" => StpMode::Stp,
+        "rstp" => StpMode::Rstp,
+        "mstp" => StpMode::Mstp,
+        _ => StpMode::Rstp,
+    };
+    let config = StpConfig {
+        bridge: body["bridge"].as_str().unwrap_or("").to_string(),
+        enabled: body["enabled"].as_bool().unwrap_or(true),
+        mode,
+        priority: body["priority"].as_u64().unwrap_or(32768) as u16,
+        max_age: body["max_age"].as_u64().unwrap_or(20) as u16,
+        hello_time: body["hello_time"].as_u64().unwrap_or(2) as u16,
+        forward_delay: body["forward_delay"].as_u64().unwrap_or(15) as u16,
+    };
+    match s.bridge_stp_mgr.set(config) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn bridge_acl_list(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.bridge_acl.list_rules()))
+}
+
+pub(crate) async fn bridge_acl_add(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::bridge::filter::BridgeAclRule;
+    let rule = BridgeAclRule {
+        bridge: body["bridge"].as_str().unwrap_or("").to_string(),
+        action: body["action"].as_str().unwrap_or("accept").to_string(),
+        src_mac: body["src_mac"].as_str().map(|s| s.to_string()),
+        dst_mac: body["dst_mac"].as_str().map(|s| s.to_string()),
+        vlan_id: body["vlan_id"].as_u64().map(|v| v as u16),
+        src_port: body["src_port"].as_str().map(|s| s.to_string()),
+        dst_port: body["dst_port"].as_str().map(|s| s.to_string()),
+        enabled: body["enabled"].as_bool().unwrap_or(true),
+    };
+    s.bridge_acl.add_rule(rule);
+    ok()
+}
+
+pub(crate) async fn bridge_acl_remove(
+    State(s): State<AppState>,
+    Path(idx): Path<usize>,
+) -> Json<serde_json::Value> {
+    s.bridge_acl.remove_rule(idx);
+    ok()
+}
+
+pub(crate) async fn lldp_neighbors(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.lldp_agent.list_neighbors()))
+}
+
+pub(crate) async fn bfd_list(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.bfd_mgr.list()))
+}
+
+pub(crate) async fn bfd_add(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::routing::BfdSession;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let session = BfdSession {
+        neighbor: body["neighbor"].as_str().unwrap_or("").to_string(),
+        interface: body["interface"].as_str().unwrap_or("").to_string(),
+        desired_tx_interval: body["desired_tx_interval"].as_u64().unwrap_or(100) as u32,
+        required_rx_interval: body["required_rx_interval"].as_u64().unwrap_or(100) as u32,
+        detection_multiplier: body["detection_multiplier"].as_u64().unwrap_or(3) as u8,
+        state: "up".into(),
+        last_seen: now,
+        enabled: body["enabled"].as_bool().unwrap_or(true),
+    };
+    match s.bfd_mgr.add(session) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn bfd_remove(
+    State(s): State<AppState>,
+    Path(neighbor): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.bfd_mgr.remove(&neighbor) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn bfd_status(
+    State(s): State<AppState>,
+    Path(neighbor): Path<String>,
+) -> Json<serde_json::Value> {
+    let is_down = s.bfd_mgr.is_down(&neighbor, 30);
+    Json(serde_json::json!({"neighbor": neighbor, "down": is_down}))
+}
+
+pub(crate) async fn dns_static_list(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.dns_static_mgr.list()))
+}
+
+pub(crate) async fn dns_static_add(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::dns::DnsStaticEntry;
+    let entry = DnsStaticEntry {
+        name: body["name"].as_str().unwrap_or("").to_string(),
+        r#type: body["type"].as_str().unwrap_or("A").to_string(),
+        value: body["value"].as_str().unwrap_or("").to_string(),
+        ttl: body["ttl"].as_u64().unwrap_or(86400) as u32,
+    };
+    s.dns_static_mgr.add(entry);
+    ok()
+}
+
+pub(crate) async fn dns_static_remove(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    s.dns_static_mgr.remove(&name);
+    ok()
+}
+
+pub(crate) async fn ntp_client_config(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.ntp_client.get_config()))
+}
+
+pub(crate) async fn ntp_client_set_config(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::ntp::NtpClientConfig;
+    let config = NtpClientConfig {
+        enabled: body["enabled"].as_bool().unwrap_or(false),
+        server: body["server"].as_str().unwrap_or("pool.ntp.org").to_string(),
+        interval_secs: body["interval_secs"].as_u64().unwrap_or(3600),
+    };
+    s.ntp_client.set_config(config);
+    ok()
+}
+
+pub(crate) async fn ntp_client_sync(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.ntp_client.sync().await {
+        Ok(output) => Json(serde_json::json!({"output": output})),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn mangle_list(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.mangle_table.list_rules()))
+}
+
+pub(crate) async fn mangle_add(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::firewall::MangleRule;
+    let rule = MangleRule {
+        chain: body["chain"].as_str().unwrap_or("prerouting").to_string(),
+        action: body["action"].as_str().unwrap_or("mark-connection").to_string(),
+        protocol: body["protocol"].as_str().map(|s| s.to_string()),
+        src_addr: body["src_addr"].as_str().map(|s| s.to_string()),
+        dst_addr: body["dst_addr"].as_str().map(|s| s.to_string()),
+        src_port: body["src_port"].as_u64().map(|v| v as u16),
+        dst_port: body["dst_port"].as_u64().map(|v| v as u16),
+        conn_mark: body["conn_mark"].as_u64().map(|v| v as u32),
+        packet_mark: body["packet_mark"].as_u64().map(|v| v as u32),
+        route_mark: body["route_mark"].as_str().map(|s| s.to_string()),
+        enabled: body["enabled"].as_bool().unwrap_or(true),
+    };
+    s.mangle_table.add_rule(rule);
+    ok()
+}
+
+pub(crate) async fn mangle_remove(
+    State(s): State<AppState>,
+    Path(idx): Path<usize>,
+) -> Json<serde_json::Value> {
+    s.mangle_table.remove_rule(idx);
+    ok()
+}
+
+pub(crate) async fn pbr_list(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.pbr_mgr.list_rules()))
+}
+
+pub(crate) async fn pbr_add(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::routing::PbrRule;
+    let rule = PbrRule {
+        name: body["name"].as_str().unwrap_or("").to_string(),
+        src_addr: body["src_addr"].as_str().map(|s| s.to_string()),
+        dst_addr: body["dst_addr"].as_str().map(|s| s.to_string()),
+        protocol: body["protocol"].as_str().map(|s| s.to_string()),
+        src_port: body["src_port"].as_u64().map(|v| v as u16),
+        dst_port: body["dst_port"].as_u64().map(|v| v as u16),
+        mark: body["mark"].as_u64().map(|v| v as u32),
+        table_id: body["table_id"].as_u64().unwrap_or(100) as u32,
+        enabled: body["enabled"].as_bool().unwrap_or(true),
+    };
+    s.pbr_mgr.add_rule(rule);
+    ok()
+}
+
+pub(crate) async fn pbr_remove(
+    State(s): State<AppState>,
+    Path(idx): Path<usize>,
+) -> Json<serde_json::Value> {
+    s.pbr_mgr.remove_rule(idx);
+    ok()
+}
+
+pub(crate) async fn eoip_list(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.eoip_mgr.list()))
+}
+
+pub(crate) async fn eoip_create(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::tunnel::EoipTunnel;
+    let tunnel = EoipTunnel {
+        name: body["name"].as_str().unwrap_or("").to_string(),
+        local_ip: body["local_ip"].as_str().unwrap_or("").to_string(),
+        remote_ip: body["remote_ip"].as_str().unwrap_or("").to_string(),
+        tunnel_id: body["tunnel_id"].as_u64().unwrap_or(1) as u32,
+        mtu: body["mtu"].as_u64().unwrap_or(1500) as u16,
+        enabled: body["enabled"].as_bool().unwrap_or(true),
+    };
+    match s.eoip_mgr.create(tunnel) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn eoip_delete(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    s.eoip_mgr.delete(&name);
+    ok()
+}
+
+pub(crate) async fn gre_list(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.gre_mgr.list()))
+}
+
+pub(crate) async fn gre_create(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::tunnel::GreTunnel;
+    let tunnel = GreTunnel {
+        name: body["name"].as_str().unwrap_or("").to_string(),
+        local_ip: body["local_ip"].as_str().unwrap_or("").to_string(),
+        remote_ip: body["remote_ip"].as_str().unwrap_or("").to_string(),
+        ttl: body["ttl"].as_u64().unwrap_or(64) as u8,
+        mtu: body["mtu"].as_u64().unwrap_or(1476) as u16,
+        enabled: body["enabled"].as_bool().unwrap_or(true),
+    };
+    match s.gre_mgr.create(tunnel) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn gre_delete(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    s.gre_mgr.delete(&name);
+    ok()
+}
+
+pub(crate) async fn flow_status(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "enabled": s.flow_exporter.is_enabled(),
+        "collectors": s.flow_exporter.list_collectors(),
+    }))
+}
+
+pub(crate) async fn flow_records(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.flow_exporter.get_records()))
+}
+
+pub(crate) async fn flow_clear(State(s): State<AppState>) -> Json<serde_json::Value> {
+    s.flow_exporter.clear_records();
+    ok()
+}
+
+pub(crate) async fn wol_list(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.wol_mgr.list()))
+}
+
+pub(crate) async fn wol_add(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::tools::WolTarget;
+    let target = WolTarget {
+        name: body["name"].as_str().unwrap_or("").to_string(),
+        mac: body["mac"].as_str().unwrap_or("").to_string(),
+        interface: body["interface"].as_str().map(|s| s.to_string()),
+        broadcast_ip: body["broadcast_ip"]
+            .as_str()
+            .and_then(|s| s.parse().ok()),
+    };
+    s.wol_mgr.add(target);
+    ok()
+}
+
+pub(crate) async fn wol_remove(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    s.wol_mgr.remove(&name);
+    ok()
+}
+
+pub(crate) async fn wol_wake(
+    State(s): State<AppState>,
+    Path(mac): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.wol_mgr.wake(&mac).await {
+        Ok(output) => Json(serde_json::json!({"output": output})),
+        Err(e) => err(e.to_string()),
+    }
+}

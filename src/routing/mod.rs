@@ -4,6 +4,8 @@ pub mod types;
 pub mod filters;
 pub mod filters_real;
 pub mod ospf_spf;
+pub mod bfd;
+pub mod pbr;
 #[cfg(feature = "real")]
 pub mod bgp_real;
 #[cfg(feature = "real")]
@@ -15,6 +17,8 @@ pub use types::*;
 pub use filters::*;
 pub use filters_real::*;
 pub use ospf_spf::*;
+pub use bfd::*;
+pub use pbr::*;
 #[cfg(feature = "real")]
 pub use bgp_real::RealBgpBackend;
 #[cfg(feature = "real")]
