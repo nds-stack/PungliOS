@@ -1953,3 +1953,144 @@ pub(crate) async fn get_mib_entries(State(_s): State<AppState>) -> Json<serde_js
     }
     Json(serde_json::json!(entries))
 }
+
+// ─── IPsec ─────────────────────────────────────────────
+
+pub(crate) async fn ipsec_status(State(s): State<AppState>) -> Json<serde_json::Value> {
+    match s.ipsec_mgr.status().await {
+        Ok(conns) => Json(serde_json::json!(conns)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn ipsec_connect(
+    State(s): State<AppState>,
+    Path(profile): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.ipsec_mgr.connect(&profile).await {
+        Ok(output) => Json(serde_json::json!({"output": output})),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn ipsec_disconnect(
+    State(s): State<AppState>,
+    Path(profile): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.ipsec_mgr.disconnect(&profile).await {
+        Ok(output) => Json(serde_json::json!({"output": output})),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+// ─── NTP ───────────────────────────────────────────────
+
+pub(crate) async fn get_ntp_config(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.ntp_srv.get_config()))
+}
+
+pub(crate) async fn set_ntp_config(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::ntp::NtpConfig;
+    let config = NtpConfig {
+        enabled: body["enabled"].as_bool().unwrap_or(false),
+        listen_port: body["listen_port"].as_u64().unwrap_or(123) as u16,
+        stratum: body["stratum"].as_u64().unwrap_or(3) as u8,
+        reference: body["reference"].as_str().unwrap_or("PungliOS").to_string(),
+    };
+    match s.ntp_srv.set_config(config) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn get_ntp_status(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "uptime_secs": s.ntp_srv.uptime_secs(),
+        "current_timestamp": s.ntp_srv.current_timestamp(),
+    }))
+}
+
+// ─── DNS DOH ───────────────────────────────────────────
+
+#[derive(serde::Deserialize)]
+pub(crate) struct DohParams {
+    pub domain: String,
+    pub server: Option<String>,
+}
+
+pub(crate) async fn dns_doh_resolve(
+    Query(params): Query<DohParams>,
+) -> Json<serde_json::Value> {
+    use crate::dns::doh::DohResolver;
+    let domain = &params.domain;
+    let server = params.server.as_deref().unwrap_or("https://cloudflare-dns.com/dns-query");
+    if domain.is_empty() {
+        return err("domain is required".into());
+    }
+    match DohResolver::resolve(domain, server).await {
+        Ok(resp) => Json(serde_json::json!(resp)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+// ─── Bandwidth Test ────────────────────────────────────
+
+pub(crate) async fn bandwidth_test(
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::tools::bw_test::BandwidthTest;
+    let role = body["role"].as_str().unwrap_or("client");
+    let target = body["target"].as_str().unwrap_or("127.0.0.1");
+    let port = body["port"].as_u64().unwrap_or(5001) as u16;
+    let duration = body["duration"].as_u64().unwrap_or(10);
+
+    let result = if role == "server" {
+        BandwidthTest::start_server(port, duration).await
+    } else {
+        BandwidthTest::start_client(target, port, duration).await
+    };
+
+    match result {
+        Ok(r) => Json(serde_json::json!(r)),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+// ─── Graphs ────────────────────────────────────────────
+
+#[derive(serde::Deserialize)]
+pub(crate) struct GraphQuery {
+    pub range: Option<u64>,
+}
+
+pub(crate) async fn get_graph_series(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+    Query(params): Query<GraphQuery>,
+) -> Json<serde_json::Value> {
+    let data = match params.range {
+        Some(range) => s.graph_store.get_series_range(&name, range),
+        None => s.graph_store.get_series(&name),
+    };
+    Json(serde_json::json!(data))
+}
+
+pub(crate) async fn list_graph_metrics(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.graph_store.list_metrics()))
+}
+
+pub(crate) async fn add_graph_datapoint(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let name = body["name"].as_str().unwrap_or("").to_string();
+    let value = body["value"].as_f64().unwrap_or(0.0);
+    if name.is_empty() {
+        return err("metric name is required".into());
+    }
+    s.graph_store.add_data(&name, value);
+    ok()
+}

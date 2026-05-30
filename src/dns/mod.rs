@@ -1,3 +1,4 @@
+pub mod doh;
 pub mod types;
 
 use anyhow::Result;

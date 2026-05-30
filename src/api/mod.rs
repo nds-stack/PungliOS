@@ -5,8 +5,9 @@ pub(crate) mod monitoring;
 
 use crate::traits::MockBackend;
 use crate::{
-    address_list, billing, bonding, bpf_qos, conntrack, dhcp_client, firewall, l2tp, net,
-    netwatch, plugins, pppoe, qos, routing, scheduler, snmp, tenancy, user, vrf, vrrp, wireguard,
+    address_list, billing, bonding, bpf_qos, conntrack, dhcp_client, firewall, graphs, ipsec, l2tp,
+    net, netwatch, ntp, plugins, pppoe, qos, routing, scheduler, snmp, tenancy, user, vrf, vrrp,
+    wireguard,
 };
 use axum::{
     Json, Router,
@@ -48,6 +49,9 @@ pub struct AppState {
     pub netwatch_mgr: Arc<netwatch::NetwatchManager>,
     pub pcq_mgr: Arc<bpf_qos::PcqManager>,
     pub snmp_agent: Arc<snmp::SnmpAgent>,
+    pub ipsec_mgr: Arc<ipsec::IpsecManager>,
+    pub ntp_srv: Arc<ntp::NtpServer>,
+    pub graph_store: Arc<graphs::GraphStore>,
     pub monitoring_tx: broadcast::Sender<String>,
 }
 
@@ -104,6 +108,9 @@ impl AppState {
             netwatch_mgr: Arc::new(netwatch::NetwatchManager::new()),
             pcq_mgr: Arc::new(bpf_qos::PcqManager::new()),
             snmp_agent: Arc::new(snmp::SnmpAgent::new()),
+            ipsec_mgr: Arc::new(ipsec::IpsecManager::new()),
+            ntp_srv: Arc::new(ntp::NtpServer::new()),
+            graph_store: Arc::new(graphs::GraphStore::new(288, 300)),
             monitoring_tx,
         }
     }
@@ -455,6 +462,41 @@ pub fn router(state: AppState) -> Router {
             put(handlers::update_snmp_config),
         )
         .route("/api/v1/snmp/mib", get(handlers::get_mib_entries))
+        .route(
+            "/api/v1/ipsec/status",
+            get(handlers::ipsec_status),
+        )
+        .route(
+            "/api/v1/ipsec/connect/{profile}",
+            post(handlers::ipsec_connect),
+        )
+        .route(
+            "/api/v1/ipsec/disconnect/{profile}",
+            post(handlers::ipsec_disconnect),
+        )
+        .route("/api/v1/ntp/config", get(handlers::get_ntp_config))
+        .route("/api/v1/ntp/config", put(handlers::set_ntp_config))
+        .route("/api/v1/ntp/status", get(handlers::get_ntp_status))
+        .route(
+            "/api/v1/dns/doh",
+            get(handlers::dns_doh_resolve),
+        )
+        .route(
+            "/api/v1/tools/bandwidth-test",
+            post(handlers::bandwidth_test),
+        )
+        .route(
+            "/api/v1/graphs/{name}",
+            get(handlers::get_graph_series),
+        )
+        .route(
+            "/api/v1/graphs",
+            get(handlers::list_graph_metrics),
+        )
+        .route(
+            "/api/v1/graphs",
+            post(handlers::add_graph_datapoint),
+        )
         .with_state(state)
 }
 
