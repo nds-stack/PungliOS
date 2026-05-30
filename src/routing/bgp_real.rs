@@ -7,6 +7,7 @@ use std::time::Duration;
 use tokio::net::TcpStream;
 use tokio::sync::RwLock;
 use tokio::time::timeout;
+use tokio::io::AsyncReadExt;
 
 // ─── BGP Message Types ─────────────────────────────────
 

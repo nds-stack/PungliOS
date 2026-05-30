@@ -3,7 +3,6 @@ use super::WireguardBackend;
 use anyhow::{Result, bail};
 use async_trait::async_trait;
 use std::collections::HashMap;
-use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio::process::Command;
 
@@ -132,18 +131,27 @@ impl WireguardBackend for RealWireguardBackend {
             bail!("peer '{}' already exists on {}", peer.public_key, peer.interface);
         }
 
-        let mut args = vec!["set", &peer.interface, "peer", &peer.public_key];
+        let mut args: Vec<String> = vec![
+            "set".into(),
+            peer.interface.clone(),
+            "peer".into(),
+            peer.public_key.clone(),
+        ];
         if let Some(ep) = &peer.endpoint {
             let endpoint = format!("{}:{}", ep, peer.endpoint_port.unwrap_or(51820));
-            args.extend_from_slice(&["endpoint", &endpoint]);
+            args.push("endpoint".into());
+            args.push(endpoint);
         }
         if let Some(ka) = peer.persistent_keepalive {
-            args.extend_from_slice(&["persistent-keepalive", &ka.to_string()]);
+            args.push("persistent-keepalive".into());
+            args.push(ka.to_string());
         }
         for ip in &peer.allowed_ips {
-            args.extend_from_slice(&["allowed-ips", ip]);
+            args.push("allowed-ips".into());
+            args.push(ip.clone());
         }
-        Self::wg_cmd(&args).await?;
+        let str_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        Self::wg_cmd(&str_refs).await?;
 
         iface_peers.push(peer.clone());
         Ok(())
