@@ -5,10 +5,10 @@ pub(crate) mod monitoring;
 
 use crate::traits::MockBackend;
 use crate::{
-    address_list, backup, billing, bonding, bpf_qos, bridge, conntrack, dhcp, dhcp_client, dns,
-    firewall, graphs, hotspot, ipsec, ipv6, l2tp, lldp, lte, mpls, net, netwatch, ntp, plugins,
-    pppoe, qos, radius, routing, scheduler, snmp, tenancy, tools, traffic_flow, tunnel, upnp, user,
-    vrf, vrrp, wireguard,
+    accounting, address_list, backup, billing, bonding, bpf_qos, bridge, cloud, conntrack, dhcp,
+    dhcp_client, dns, dot1x, firewall, graphs, health, hotspot, ipsec, ipv6, l2tp, lldp, lte, mpls,
+    net, netwatch, ntp, plugins, pppoe, qos, radius, routing, scheduler, snmp, tenancy, tools,
+    traffic_flow, tunnel, upnp, user, vrf, vrrp, wireguard,
 };
 use axum::{
     Json, Router,
@@ -85,6 +85,10 @@ pub struct AppState {
     pub backup_mgr: Arc<backup::BackupManager>,
     pub email_mgr: Arc<tools::EmailManager>,
     pub upnp_mgr: Arc<upnp::UpnpManager>,
+    pub dot1x_mgr: Arc<dot1x::Dot1xManager>,
+    pub ddns_mgr: Arc<cloud::DdnsManager>,
+    pub health_mon: Arc<health::HealthMonitor>,
+    pub ip_accounting: Arc<accounting::IpAccounting>,
     pub monitoring_tx: broadcast::Sender<String>,
 }
 
@@ -176,6 +180,10 @@ impl AppState {
             backup_mgr: Arc::new(backup::BackupManager::new()),
             email_mgr: Arc::new(tools::EmailManager::new()),
             upnp_mgr: Arc::new(upnp::UpnpManager::new()),
+            dot1x_mgr: Arc::new(dot1x::Dot1xManager::new()),
+            ddns_mgr: Arc::new(cloud::DdnsManager::new()),
+            health_mon: Arc::new(health::HealthMonitor::new()),
+            ip_accounting: Arc::new(accounting::IpAccounting::new()),
             monitoring_tx,
         }
     }
@@ -753,6 +761,17 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/upnp/enabled", post(handlers::upnp_set_enabled))
         .route("/api/v1/upnp/mappings", post(handlers::upnp_add_mapping))
         .route("/api/v1/upnp/mappings/{id}", delete(handlers::upnp_remove_mapping))
+        .route("/api/v1/dot1x/ports", get(handlers::dot1x_ports))
+        .route("/api/v1/dot1x/ports", post(handlers::dot1x_set_port))
+        .route("/api/v1/dot1x/ports/{name}", delete(handlers::dot1x_remove_port))
+        .route("/api/v1/cloud/ddns", get(handlers::ddns_config))
+        .route("/api/v1/cloud/ddns", put(handlers::ddns_set_config))
+        .route("/api/v1/cloud/ddns/update", post(handlers::ddns_update))
+        .route("/api/v1/system/health", get(handlers::health_status))
+        .route("/api/v1/system/health", post(handlers::health_update))
+        .route("/api/v1/system/accounting", get(handlers::accounting_status))
+        .route("/api/v1/system/accounting", post(handlers::accounting_set_enabled))
+        .route("/api/v1/system/accounting/clear", post(handlers::accounting_clear))
         .with_state(state)
 }
 

@@ -9,6 +9,7 @@ extern crate tempfile;
 #[cfg(test)]
 extern crate tokio_test;
 
+pub mod accounting;
 pub mod address_list;
 pub mod api;
 pub mod backup;
@@ -17,13 +18,16 @@ pub mod bonding;
 pub mod bpf_qos;
 pub mod bridge;
 pub mod cli;
+pub mod cloud;
 pub mod config;
 pub mod conntrack;
 pub mod dhcp;
 pub mod dhcp_client;
 pub mod dns;
+pub mod dot1x;
 pub mod firewall;
 pub mod graphs;
+pub mod health;
 pub mod hotspot;
 pub mod ipsec;
 pub mod ipv6;

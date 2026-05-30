@@ -2826,3 +2826,35 @@ pub(crate) async fn upnp_add_mapping(State(s): State<AppState>, Json(body): Json
     s.upnp_mgr.add_mapping(UpnpMapping { id: (s.upnp_mgr.list_mappings().len() + 1) as u64, external_port: body["external_port"].as_u64().unwrap_or(0) as u16, internal_port: body["internal_port"].as_u64().unwrap_or(0) as u16, internal_ip: ip, protocol: body["protocol"].as_str().unwrap_or("tcp").to_string(), duration_secs: body["duration"].as_u64().unwrap_or(0) as u32, description: body["description"].as_str().unwrap_or("").to_string() }); ok()
 }
 pub(crate) async fn upnp_remove_mapping(State(s): State<AppState>, Path(id): Path<u64>) -> Json<serde_json::Value> { s.upnp_mgr.remove_mapping(id); ok() }
+
+// ─── 802.1X ────────────────────────────────────────────
+
+pub(crate) async fn dot1x_ports(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.dot1x_mgr.list_ports())) }
+pub(crate) async fn dot1x_set_port(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    use crate::dot1x::Dot1xPort;
+    s.dot1x_mgr.set_port(Dot1xPort { name: body["name"].as_str().unwrap_or("").to_string(), enabled: body["enabled"].as_bool().unwrap_or(true), auth_type: body["auth_type"].as_str().unwrap_or("mac-auth-bypass").to_string(), timeout_secs: body["timeout"].as_u64().unwrap_or(30) as u32 }); ok()
+}
+pub(crate) async fn dot1x_remove_port(State(s): State<AppState>, Path(name): Path<String>) -> Json<serde_json::Value> { s.dot1x_mgr.remove_port(&name); ok() }
+
+// ─── DDNS ──────────────────────────────────────────────
+
+pub(crate) async fn ddns_config(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.ddns_mgr.get_config())) }
+pub(crate) async fn ddns_set_config(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    use crate::cloud::DdnsConfig;
+    s.ddns_mgr.set_config(DdnsConfig { enabled: body["enabled"].as_bool().unwrap_or(false), service: body["service"].as_str().unwrap_or("cloudflare").to_string(), hostname: body["hostname"].as_str().unwrap_or("").to_string(), username: body["username"].as_str().map(|s| s.to_string()), password: body["password"].as_str().map(|s| s.to_string()), interval_minutes: body["interval"].as_u64().unwrap_or(5) as u32 }); ok()
+}
+pub(crate) async fn ddns_update(State(s): State<AppState>) -> Json<serde_json::Value> { match s.ddns_mgr.update().await { Ok(o) => Json(serde_json::json!({"output": o})), Err(e) => err(e.to_string()) } }
+
+// ─── System Health ─────────────────────────────────────
+
+pub(crate) async fn health_status(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.health_mon.get_status())) }
+pub(crate) async fn health_update(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    use crate::health::HealthStatus;
+    s.health_mon.update(HealthStatus { temperature: body["temperature"].as_f64().unwrap_or(45.0), voltage: body["voltage"].as_f64().unwrap_or(12.0), cpu_usage: body["cpu_usage"].as_f64().unwrap_or(15.0), memory_usage: body["memory_usage"].as_f64().unwrap_or(30.0), uptime_secs: body["uptime"].as_u64().unwrap_or(0) }); ok()
+}
+
+// ─── IP Accounting ─────────────────────────────────────
+
+pub(crate) async fn accounting_status(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!({"enabled": s.ip_accounting.is_enabled(), "records": s.ip_accounting.get_records()})) }
+pub(crate) async fn accounting_set_enabled(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> { s.ip_accounting.set_enabled(body["enabled"].as_bool().unwrap_or(false)); ok() }
+pub(crate) async fn accounting_clear(State(s): State<AppState>) -> Json<serde_json::Value> { s.ip_accounting.clear(); ok() }
