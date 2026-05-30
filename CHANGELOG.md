@@ -4,6 +4,41 @@ All notable changes to PungliOS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.0] - 2026-05-30
+
+### Added (Sprint 1 — Easy Wins)
+
+- **Address List (5.1):** `src/address_list/` — CRUD address list with IPv4/IPv6 prefix matching, auto-expiry via timeout, thread-safe `AddressListManager`. 6 API endpoints: `GET/POST /api/v1/address-lists`, `GET /{name}`, `DELETE /entry/{id}`, `POST /{name}/flush`
+- **Connection State Matching (5.2):** `src/firewall/conn_state.rs` — `ConnectionState` enum (New/Established/Related/Invalid/Untracked) + `ConnStateFilter` with invert support
+- **Tools (5.3):** `src/tools/` — `Pinger::ping()` via OS `ping` command, `traceroute()` via `tracert`/`traceroute`. Cross-platform parsers (Windows + Linux). 2 API endpoints: `GET /api/v1/tools/ping`, `GET /api/v1/tools/traceroute`
+- **DHCP Client (5.4):** `src/dhcp_client/` — `DhcpClientBackend` trait + `MockDhcpClient` + `DhcpClientManager`. DORA lifecycle (discover, request, renew, release). 3 API endpoints: `POST /{iface}/discover`, `GET /{iface}/status`, `POST /{iface}/release`
+- **Scheduler (5.5):** `src/scheduler/` — `ScheduledTask` with `ScheduleInterval` (Once, Every, Daily, Weekly, Cron), `ScheduledTaskAction` (HTTP get/post, CLI command, enable/disable interface, cleanup). 5 API endpoints: `GET/POST /api/v1/scheduler/tasks`, `GET/DELETE /{id}`, `POST /{id}/toggle`
+
+### Added (Sprint 2 — Connectivity)
+
+- **BGP Real Backend (5.6):** `src/routing/bgp_real.rs` — BGP message codec (OPEN/UPDATE/KEEPALIVE/NOTIFICATION), TCP socket session per peer (port 179), FSM (Idle→Connect→OpenSent→OpenConfirm→Established), `#[cfg(feature = "real")]`
+- **OSPF Real Backend (5.7):** `src/routing/ospf_real.rs` — OSPF HELLO packet encode/decode, multicast via UDP socket (224.0.0.5:89), area state management, `#[cfg(feature = "real")]`
+- **Route Filters (5.8):** `src/routing/filters.rs` — PrefixList entry with ge/le matching, AS-Path exact/regex/any filter, RouteMap entry with set actions (local-pref, metric, as-path-prepend, next-hop, community, tag). 12 API endpoints: prefix-lists CRUD, as-path CRUD, route-maps CRUD
+- **WireGuard Real Backend (5.9):** `src/wireguard/real.rs` — Interface create/delete via `ip link add dev wg0 type wireguard`, keypair via `wg genkey` stdin pipe, peer management via `wg set`, `#[cfg(feature = "real")]`
+- **Bonding/LACP (5.10):** `src/bonding/` — `BondMode` (RoundRobin, ActiveBackup, XOR, Broadcast, Ieee8023ad, Tlb, Alb), `BondingBackend` trait + `MockBondingBackend` + `BondingManager`. 7 API endpoints: bond CRUD, slave add/remove, status
+- **Bridge VLAN Filtering (5.11):** `src/net/bridge_vlan.rs` — `BridgeVlanManager` with access/trunk mode, tagged/untagged VLAN lists, PVID support. 5 API endpoints: GET/POST /api/v1/bridge-vlan, GET /{bridge}, DELETE /{bridge}/{port}/{vlan}
+
+### Added (Infrastructure)
+
+- 23 new API endpoints across 6 new modules (total API endpoints: 80+)
+- 6 new manager structs added to `AppState`
+- `RoutingProtocol::Connected` variant added
+
+### Fixed
+
+- `add_route` handler missing closing braces (pre-existing brace mismatch in handlers.rs)
+- Tracert/Traceroute parser: skip TTL column when searching for RTT values (was picking up hop number as RTT)
+- Address list expiry: changed from integer-second comparison to f64 subsecond precision
+- WireGuard real backend: removed unused `rand`, `x25519_dalek`, `base64` deps; keygen via `wg genkey` CLI pipe instead
+- BGP real backend: `octets()` on `IpAddr` → match to concrete `Ipv4Addr`/`Ipv6Addr`
+- OSPF real backend: removed unused imports (`HashMap`, `Arc`, `Duration`, `OSPF_PORT`, `OSPF_DBD`)
+- Route filter API: cleaned up moved-ownership warning in `name` variable
+
 ## [0.4.0] - 2026-05-30
 
 ### Added

@@ -178,6 +178,98 @@ Satu server PungliOS ngelayani banyak penyewa (ISP, korporasi, atau oknum-oknum 
 | `/api/v1/tenants` | POST | Nambah penyewa baru — gak perlu KTP, cukup JSON |
 | `/api/v1/tenants/{id}` | DELETE | Usir penyewa (lebih halus dari penggusuran paksa)
 
+### Address List (5.1)
+
+Address list buat ngumpulin IP-IP yang bermasalah. Mirip Daftar Hitam KPK: kalo udah masuk sini, di-drop tanpa ampun. Bisa dipake bareng conntrack buat auto-populate (otomatis masukin IP yang nyoba port scan).
+
+| Endpoint | Method | Buat Apa |
+|----------|--------|----------|
+| `/api/v1/address-lists` | GET | Liat semua daftar (mirip laporan BIN — banyak, tapi berguna) |
+| `/api/v1/address-lists` | POST | Nambah entri baru: `name`, `address`, `prefix`, `policy` (allow/drop/reject), `timeout` |
+| `/api/v1/address-lists/{name}` | GET | Isi dari satu daftar (lebih transparan dari isi amplop) |
+| `/api/v1/address-lists/entry/{id}` | DELETE | Hapus satu entri (gausah paraf 3 menteri) |
+| `/api/v1/address-lists/{name}/flush` | POST | Bersihin satu daftar — lebih cepet dari pembersihan KPK |
+
+### Tools: Ping & Traceroute (5.3)
+
+Buat cek koneksi. Soalnya kalo internet mati, jangan-jangan router lo yang error — bukan "sistem lagi diperbaiki" kayak di instansi pemerintah.
+
+| Endpoint | Method | Buat Apa |
+|----------|--------|----------|
+| `/api/v1/tools/ping?target=X&count=N` | GET | Ping target IP. Count max 100. Timeout max 30s. |
+| `/api/v1/tools/traceroute?target=X&max_ttl=N` | GET | Trace route ke target. Kalo mentok, ya mentok — beda sama proyek pemerintah yang "mentok" tapi anggaran tetap cair. |
+
+### DHCP Client (5.4)
+
+Dapetin IP dari DHCP server upstream. Mirip ngurus KTP: Datang (Discover), dapat nomor antrian (Offer), isi form (Request), dapet KTP (Ack). Bedanya kalo DHCP client gak perlu bayar "uang administrasi."
+
+| Endpoint | Method | Buat Apa |
+|----------|--------|----------|
+| `/api/v1/dhcp-client/{interface}/discover` | POST | Minta IP baru (gausah ngurus izin, tinggal POST) |
+| `/api/v1/dhcp-client/{interface}/status` | GET | Cek status lease — lebih transparan dari SPJ proyek |
+| `/api/v1/dhcp-client/{interface}/release` | POST | Lepas IP — lebih halus dari pengunduran diri menteri |
+
+### Scheduler (5.5)
+
+Jadwalin tugas rutin. Mirip jadwal sidang istana: ada yang mingguan (rapat kabinet), harian (apel pagi), atau pas sekali aja (pencairan dana). Bedanya scheduler kita **beneran jalan** tepat waktu, bukan cuma "dalam proses."
+
+| Endpoint | Method | Buat Apa |
+|----------|--------|----------|
+| `/api/v1/scheduler/tasks` | GET | Liat semua tugas terjadwal (mirip jadwal menteri — bedanya ini real) |
+| `/api/v1/scheduler/tasks` | POST | Bikin tugas baru: `name`, `interval` (once/daily/every_X), `action` |
+| `/api/v1/scheduler/tasks/{id}` | GET | Detail tugas — lebih jelas dari laporan kinerja |
+| `/api/v1/scheduler/tasks/{id}` | DELETE | Hapus tugas — lebih cepet dari pemecatan |
+| `/api/v1/scheduler/tasks/{id}/toggle` | POST | Aktif/nonaktifkan tugas. Mirip pejabat aktif/nonaktif — bedanya ini jelas statusnya. |
+
+### Bonding / LACP (5.10)
+
+Gabungin dua kabel jadi satu. Mirip merger perusahaan — 2 + 2 = 1 entitas baru yang lebih gede. Support 7 mode: round-robin, active-backup, XOR, broadcast, 802.3ad (LACP), TLB, ALB. 802.3ad paling canggih — kayak Menkopolhukam, tapi ini beneran kerja.
+
+| Endpoint | Method | Buat Apa |
+|----------|--------|----------|
+| `/api/v1/bonding/bonds` | GET | Liat ikatan (mirip liat silsilah keluarga pejabat) |
+| `/api/v1/bonding/bonds` | POST | Bikin ikatan baru: `name`, `mode`, `slaves`, `miimon` |
+| `/api/v1/bonding/bonds/{name}` | GET | Detail ikatan — lebih jelas dari notulen rapat |
+| `/api/v1/bonding/bonds/{name}` | DELETE | Putus ikatan — lebih cepet dari cerai |
+| `/api/v1/bonding/bonds/{name}/slaves` | POST | Nambah anggota: `slave` — gaperlu akta notaris |
+| `/api/v1/bonding/bonds/{name}/slaves/{slave}` | DELETE | Pecat anggota — eksekusi langsung, gak pake SP3 |
+| `/api/v1/bonding/status` | GET | Status bonding — cek sehat-sakit |
+
+### Bridge VLAN Filter (5.11)
+
+Filter VLAN di bridge. Bedain mana traffic yang boleh lewat dan mana yang ditahan — mirip satpam di pintu masuk kompleks perumahan elite: yang punya akses (tagged/untagged) dipersilakan, yang gak ya ditolak halus.
+
+| Endpoint | Method | Buat Apa |
+|----------|--------|----------|
+| `/api/v1/bridge-vlan` | GET | Liat semua filter VLAN — lebih transparan dari APBD |
+| `/api/v1/bridge-vlan` | POST | Tambah filter: `bridge`, `port`, `vlan_id`, `mode` (access/trunk) |
+| `/api/v1/bridge-vlan/{bridge}` | GET | Filter di bridge tertentu — kayak cek pos satpam per kompleks |
+| `/api/v1/bridge-vlan/{bridge}/{port}/{vlan}` | DELETE | Hapus filter — lebih cepet dari penghapusan utang negara |
+
+### Route Filters (5.8)
+
+Routing policy: prefix-list buat filter IP, AS-path filter buat filter AS, route-map buat set atribut. Kalo router pake kebijakan kayak pemerintah — "yang ini boleh lewat, yang itu ditahan" — bedanya policy router bisa dijelasin logisnya.
+
+| Endpoint | Method | Buat Apa |
+|----------|--------|----------|
+| `/api/v1/routing/filters/prefix-lists` | GET/POST | Prefix list — filter subnet |
+| `/api/v1/routing/filters/prefix-lists/{name}` | GET/DELETE | Detail/hapus prefix list |
+| `/api/v1/routing/filters/as-path` | GET/POST | AS-path filter — filter AS number |
+| `/api/v1/routing/filters/route-maps` | GET/POST | Route-map — kalo cocok, set aksi |
+| `/api/v1/routing/filters/route-maps/{name}` | GET/DELETE | Detail/hapus route-map |
+
+### BGP Real Backend (5.6)
+
+BGP beneran: TCP socket ke peer port 179, OPEN → KEEPALIVE → Established, UPDATE parser untuk route exchange. Ada FSM-nya (Idle/Connect/OpenSent/OpenConfirm/Established). Diaktifin lewat `--features real`. Mirip lobby DPR — bedanya BGP lebih cepet negosiasinya dan hasilnya jelas.
+
+### OSPF Real Backend (5.7)
+
+OSPF beneran: HELLO packet multicast ke 224.0.0.5 via UDP, area management, DR election. Jalan di feature `real`. Mirip rapat koordinasi antar dinas — bedanya OSPF lebih sering ngirim HELLO dan gak perlu Snack.
+
+### WireGuard Real Backend (5.9)
+
+WireGuard beneran: Tunnel via `wg` + `ip` command. Generate keypair otomatis (wg genkey → wg pubkey), set listen port, add/remove peer. Diaktifin lewat `--features real`. Mirip jaksa yang beneran kerja — langsung eksekusi, gak pake "segera ditindaklanjuti."
+
 ### CLI
 
 ```
@@ -208,14 +300,14 @@ PungliOS nangani error dengan integritas tinggi — beda sama e-KTP yang typo di
 ## Keterbatasan (Syarat & Ketentuan Berlaku)
 
 - **Linux-only** — networking code butuh kernel Linux. Kalo lu pake Windows, beli router beneran atau pake Linux VM. Ini bukan aplikasi SPBE.
-- **Real backend (1.1b) tersedia** — aktif lewat `--features real`. Pake `nlink` crate buat akses kernel langsung (netlink). Sebagian method udah jalan (interface up/down/mtu, list routes, conntrack sysctl), sisanya masih `bail!("not implemented")` — tunggu kontribusi atau PR.
+- **Real backend (1.1b) tersedia** — aktif lewat `--features real`. Pake `nlink` crate buat akses kernel langsung (netlink). Interface up/down/mtu, list routes, conntrack sysctl, NAT nftables — jalan semua. BGP, OSPF, WireGuard real backend juga siap (aktif lewat `--features real`).
 - **No hot-reload** — perubahan config harus `apply`/`commit` dulu. Beda sama APBN yang bisa di-revisi tengah jalan.
 - **PPPoE + RADIUS sudah jalan** — Rust-native PPPoE discovery (PADI/PADO/PADR/PADS/PADT), LCP/IPCP negotiation, PAP/CHAP auth, RADIUS client (auth + accounting). **Udah bisa konek, tinggal nyari duit.**
 - **DHCP server sudah jalan** — Discover→Offer→Request→Ack full DORA, IP pool management, lease tracking, reserved IPs. Kayak bagi-bagi sembako, cuma ini gak antri.
 - **User management sudah jalan** — CRUD user, paket/bandwidth profile, IP/MAC binding. Data base user yang **beneran** akurat — beda sama e-KTP.
 - **DNS forwarder sudah jalan** — Cache + adblock + wildcard blocking. Mirip sensor internet: domain yang masuk daftar hitam ditolak, yang lain lolos.
 - **REST API sudah jalan** — Axum HTTP server dengan 25 endpoint. `cargo run --features api`. Port 3000.
-- **REST API + Web UI sudah jalan** — 50+ endpoint, 12+ halaman dashboard. `cargo run --features web`. Ini bukan bansos, sabar. Tapi realisasinya tetep ada.
+- **REST API + Web UI sudah jalan** — 50+ endpoint, 12+ halaman dashboard. `cargo run --features web`. Belum puas? Nambah lagi: Address List, DHCP Client, Scheduler, Tools (Ping/Trace), Bonding/LACP, Bridge VLAN, Route Filters — total 80+ endpoint. Ini bukan bansos, sabar. Tapi realisasinya tetep ada.
 - **Single-node** — belum ada clustering. Kalo lu mau HA, colokin 2 router terus doa. Masih lebih canggih dari server KPU yang hitung suara ulang 3 kali.
 - **Benchmark pake mock** — real benchmark butuh Linux deployment. Ini bukan hasil survei yang bisa dimanipulasi.
 
