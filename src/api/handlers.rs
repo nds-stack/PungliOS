@@ -2933,3 +2933,110 @@ pub(crate) async fn layer7_match(
         "count": matched.len(),
     }))
 }
+
+// ─── SSH ───────────────────────────────────────────────
+
+pub(crate) async fn ssh_config(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.ssh_mgr.get_config())) }
+pub(crate) async fn ssh_set_config(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    use crate::ssh::SshConfig;
+    s.ssh_mgr.set_config(SshConfig { enabled: body["enabled"].as_bool().unwrap_or(true), port: body["port"].as_u64().unwrap_or(22) as u16, allow_root: body["allow_root"].as_bool().unwrap_or(true), password_auth: body["password_auth"].as_bool().unwrap_or(true), key_auth: body["key_auth"].as_bool().unwrap_or(true), max_sessions: body["max_sessions"].as_u64().unwrap_or(10) as u32, allowed_networks: body["allowed_networks"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()).unwrap_or_default(), timeout_secs: body["timeout"].as_u64().unwrap_or(300) as u32 }); ok()
+}
+pub(crate) async fn ssh_restart(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!({"output": s.ssh_mgr.restart().await})) }
+
+// ─── Syslog ────────────────────────────────────────────
+
+pub(crate) async fn syslog_config(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.syslog_srv.get_config())) }
+pub(crate) async fn syslog_set_config(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    use crate::syslog::SyslogConfig;
+    s.syslog_srv.set_config(SyslogConfig { enabled: body["enabled"].as_bool().unwrap_or(false), listen_port: body["port"].as_u64().unwrap_or(514) as u16, remote_server: body["remote_server"].as_str().map(|s| s.to_string()), remote_port: body["remote_port"].as_u64().map(|v| v as u16), local_storage: true, max_entries: body["max_entries"].as_u64().unwrap_or(10000) as usize }); ok()
+}
+pub(crate) async fn syslog_entries(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.syslog_srv.get_entries())) }
+pub(crate) async fn syslog_clear(State(s): State<AppState>) -> Json<serde_json::Value> { s.syslog_srv.clear(); ok() }
+
+// ─── DHCPv6 Relay ──────────────────────────────────────
+
+pub(crate) async fn dhcpv6_relay_list(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.dhcpv6_relay_mgr.list())) }
+pub(crate) async fn dhcpv6_relay_add(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    use crate::ipv6::Dhcpv6RelayConfig;
+    match s.dhcpv6_relay_mgr.add(Dhcpv6RelayConfig { name: body["name"].as_str().unwrap_or("").to_string(), interfaces: body["interfaces"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()).unwrap_or_default(), server: body["server"].as_str().unwrap_or("").to_string(), enabled: body["enabled"].as_bool().unwrap_or(true) }) {
+        Ok(_) => ok(), Err(e) => err(e.to_string()),
+    }
+}
+pub(crate) async fn dhcpv6_relay_remove(State(s): State<AppState>, Path(name): Path<String>) -> Json<serde_json::Value> { s.dhcpv6_relay_mgr.remove(&name); ok() }
+
+// ─── DNS over TLS ──────────────────────────────────────
+
+pub(crate) async fn dns_dot_resolve(Query(params): Query<DohParams>) -> Json<serde_json::Value> {
+    let domain = &params.domain;
+    if domain.is_empty() { return err("domain required".into()); }
+    let server = params.server.as_deref().unwrap_or("1.1.1.1");
+    match crate::dns::dot::DotResolver::resolve(domain, server).await {
+        Ok(resp) => Json(serde_json::json!(resp)), Err(e) => err(e.to_string()),
+    }
+}
+
+// ─── Proxy ARP ─────────────────────────────────────────
+
+pub(crate) async fn proxy_arp_list(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.proxy_arp_mgr.list())) }
+pub(crate) async fn proxy_arp_add(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    use crate::net::proxy_arp::ProxyArpEntry;
+    let ip = match body["ip"].as_str().unwrap_or("").parse() { Ok(a) => a, Err(_) => return err("invalid IP".into()) };
+    s.proxy_arp_mgr.add(ProxyArpEntry { interface: body["interface"].as_str().unwrap_or("").to_string(), ip, enabled: body["enabled"].as_bool().unwrap_or(true) }); ok()
+}
+pub(crate) async fn proxy_arp_remove(State(s): State<AppState>, Path(idx): Path<usize>) -> Json<serde_json::Value> { s.proxy_arp_mgr.remove(idx); ok() }
+
+// ─── Bridge Isolation ──────────────────────────────────
+
+pub(crate) async fn bridge_isolation_list(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.bridge_isolation.list())) }
+pub(crate) async fn bridge_isolation_set(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    use crate::bridge::isolation::PortIsolationRule;
+    s.bridge_isolation.set(PortIsolationRule { bridge: body["bridge"].as_str().unwrap_or("").to_string(), port: body["port"].as_str().unwrap_or("").to_string(), isolated: body["isolated"].as_bool().unwrap_or(true), forward_to: body["forward_to"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()).unwrap_or_default() }); ok()
+}
+
+// ─── IGMP Proxy ────────────────────────────────────────
+
+pub(crate) async fn igmp_proxy_config(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.igmp_proxy_mgr.get_config())) }
+pub(crate) async fn igmp_proxy_set_config(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    use crate::bridge::igmp_proxy::IgmpProxyConfig;
+    s.igmp_proxy_mgr.set_config(IgmpProxyConfig { enabled: body["enabled"].as_bool().unwrap_or(false), upstream: body["upstream"].as_str().unwrap_or("").to_string(), downstream: body["downstream"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()).unwrap_or_default(), igmp_version: body["igmp_version"].as_u64().unwrap_or(3) as u8 }); ok()
+}
+
+// ─── Queue Burst ───────────────────────────────────────
+
+pub(crate) async fn burst_list(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.burst_mgr.list())) }
+pub(crate) async fn burst_add(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    use crate::qos::burst::QueueBurst;
+    s.burst_mgr.add(QueueBurst { name: body["name"].as_str().unwrap_or("").to_string(), interface: body["interface"].as_str().unwrap_or("").to_string(), burst_rate: body["burst_rate"].as_u64().unwrap_or(0), burst_threshold: body["burst_threshold"].as_u64().unwrap_or(0), burst_time_secs: body["burst_time"].as_u64().unwrap_or(10) as u32, rate: body["rate"].as_u64().unwrap_or(10_000), ceil: body["ceil"].as_u64().unwrap_or(50_000), enabled: body["enabled"].as_bool().unwrap_or(true) }); ok()
+}
+pub(crate) async fn burst_remove(State(s): State<AppState>, Path(idx): Path<usize>) -> Json<serde_json::Value> { s.burst_mgr.remove(idx); ok() }
+
+// ─── DHCP RADIUS ───────────────────────────────────────
+
+pub(crate) async fn dhcp_radius_list(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.dhcp_radius_mgr.list())) }
+pub(crate) async fn dhcp_radius_add(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    use crate::dhcp::radius::DhcpRadiusBinding;
+    s.dhcp_radius_mgr.add(DhcpRadiusBinding { pool_name: body["pool"].as_str().unwrap_or("").to_string(), server: body["server"].as_str().unwrap_or("").to_string(), secret: body["secret"].as_str().unwrap_or("").to_string(), default_lease_time: body["lease_time"].as_u64().unwrap_or(3600) as u32, enabled: body["enabled"].as_bool().unwrap_or(true) }); ok()
+}
+pub(crate) async fn dhcp_radius_remove(State(s): State<AppState>, Path(idx): Path<usize>) -> Json<serde_json::Value> { s.dhcp_radius_mgr.remove(idx); ok() }
+
+// ─── MNDP ──────────────────────────────────────────────
+
+pub(crate) async fn mndp_list(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.mndp_mgr.list())) }
+
+// ─── Upgrade ───────────────────────────────────────────
+
+pub(crate) async fn upgrade_config(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.upgrade_mgr.get_config())) }
+pub(crate) async fn upgrade_set_config(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    use crate::upgrade::UpgradeConfig;
+    s.upgrade_mgr.set_config(UpgradeConfig { enabled: body["enabled"].as_bool().unwrap_or(false), check_interval_hours: body["interval"].as_u64().unwrap_or(24) as u32, auto_upgrade: body["auto_upgrade"].as_bool().unwrap_or(false), repo_url: body["repo_url"].as_str().unwrap_or("https://github.com/nds-stack/PungliOS/releases").to_string(), current_version: "0.7.0".into() }); ok()
+}
+pub(crate) async fn upgrade_check(State(s): State<AppState>) -> Json<serde_json::Value> { match s.upgrade_mgr.check().await { Ok(r) => Json(serde_json::json!({"result": r})), Err(e) => err(e.to_string()) } }
+pub(crate) async fn upgrade_run(State(s): State<AppState>) -> Json<serde_json::Value> { match s.upgrade_mgr.upgrade().await { Ok(o) => Json(serde_json::json!({"output": o})), Err(e) => err(e.to_string()) } }
+
+// ─── Watchdog ──────────────────────────────────────────
+
+pub(crate) async fn watchdog_config(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!(s.watchdog_mgr.get_config())) }
+pub(crate) async fn watchdog_set_config(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    use crate::watchdog::WatchdogConfig;
+    s.watchdog_mgr.set_config(WatchdogConfig { enabled: body["enabled"].as_bool().unwrap_or(false), interval_secs: body["interval"].as_u64().unwrap_or(60) as u32, reboot_on_failure: body["reboot_on_failure"].as_bool().unwrap_or(false), ping_target: body["ping_target"].as_str().map(|s| s.to_string()), ping_interval_secs: body["ping_interval"].as_u64().unwrap_or(10) as u32, ping_fail_count: body["ping_fail_count"].as_u64().unwrap_or(3) as u32 }); ok()
+}

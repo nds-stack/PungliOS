@@ -1,6 +1,7 @@
 pub mod types;
 pub mod relay;
 pub mod snooping;
+pub mod radius;
 
 use anyhow::{Result, bail};
 use std::collections::HashMap;

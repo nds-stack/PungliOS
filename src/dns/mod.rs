@@ -1,5 +1,7 @@
 pub use doh::*;
 pub mod doh;
+pub use dot::*;
+pub mod dot;
 pub use r#static::*;
 pub mod r#static;
 pub mod types;

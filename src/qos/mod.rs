@@ -1,6 +1,8 @@
 pub mod class;
 pub mod fq_codel;
 pub mod htb;
+pub use burst::*;
+pub mod burst;
 
 use crate::traits::{ClassConfig, NetlinkQos, QdiscConfig, QdiscKind};
 use anyhow::{Result, bail};

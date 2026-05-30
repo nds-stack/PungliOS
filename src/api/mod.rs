@@ -7,8 +7,8 @@ use crate::traits::MockBackend;
 use crate::{
     accounting, address_list, backup, billing, bonding, bpf_qos, bridge, cloud, conntrack, dhcp,
     dhcp_client, dns, dot1x, firewall, graphs, health, hotspot, ipsec, ipv6, l2tp, lldp, lte, mpls,
-    net, netwatch, ntp, plugins, pppoe, qos, radius, routing, scheduler, snmp, tenancy, tools,
-    traffic_flow, tunnel, upnp, user, vrf, vrrp, wireguard,
+    net, netwatch, ntp, plugins, pppoe, qos, radius, routing, scheduler, snmp, ssh, syslog, tenancy,
+    tools, traffic_flow, tunnel, upgrade, upnp, user, vrf, vrrp, watchdog, wireguard,
 };
 use axum::{
     Json, Router,
@@ -90,6 +90,17 @@ pub struct AppState {
     pub health_mon: Arc<health::HealthMonitor>,
     pub ip_accounting: Arc<accounting::IpAccounting>,
     pub layer7_mgr: Arc<firewall::Layer7Manager>,
+    pub ssh_mgr: Arc<ssh::SshManager>,
+    pub syslog_srv: Arc<syslog::SyslogServer>,
+    pub dhcpv6_relay_mgr: Arc<ipv6::Dhcpv6RelayManager>,
+    pub proxy_arp_mgr: Arc<net::proxy_arp::ProxyArpManager>,
+    pub bridge_isolation: Arc<bridge::isolation::PortIsolation>,
+    pub igmp_proxy_mgr: Arc<bridge::igmp_proxy::IgmpProxyManager>,
+    pub burst_mgr: Arc<qos::BurstManager>,
+    pub dhcp_radius_mgr: Arc<dhcp::radius::DhcpRadiusManager>,
+    pub mndp_mgr: Arc<lldp::mndp::MndpManager>,
+    pub upgrade_mgr: Arc<upgrade::UpgradeManager>,
+    pub watchdog_mgr: Arc<watchdog::WatchdogManager>,
     pub monitoring_tx: broadcast::Sender<String>,
 }
 
@@ -186,6 +197,17 @@ impl AppState {
             health_mon: Arc::new(health::HealthMonitor::new()),
             ip_accounting: Arc::new(accounting::IpAccounting::new()),
             layer7_mgr: Arc::new(firewall::Layer7Manager::new()),
+            ssh_mgr: Arc::new(ssh::SshManager::new()),
+            syslog_srv: Arc::new(syslog::SyslogServer::new()),
+            dhcpv6_relay_mgr: Arc::new(ipv6::Dhcpv6RelayManager::new()),
+            proxy_arp_mgr: Arc::new(net::proxy_arp::ProxyArpManager::new()),
+            bridge_isolation: Arc::new(bridge::isolation::PortIsolation::new()),
+            igmp_proxy_mgr: Arc::new(bridge::igmp_proxy::IgmpProxyManager::new()),
+            burst_mgr: Arc::new(qos::BurstManager::new()),
+            dhcp_radius_mgr: Arc::new(dhcp::radius::DhcpRadiusManager::new()),
+            mndp_mgr: Arc::new(lldp::MndpManager::new()),
+            upgrade_mgr: Arc::new(upgrade::UpgradeManager::new()),
+            watchdog_mgr: Arc::new(watchdog::WatchdogManager::new()),
             monitoring_tx,
         }
     }
@@ -780,6 +802,37 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/firewall/layer7/{name}", delete(handlers::layer7_remove))
         .route("/api/v1/firewall/layer7/{name}/toggle", post(handlers::layer7_toggle))
         .route("/api/v1/firewall/layer7/match", post(handlers::layer7_match))
+        .route("/api/v1/ssh/config", get(handlers::ssh_config))
+        .route("/api/v1/ssh/config", put(handlers::ssh_set_config))
+        .route("/api/v1/ssh/restart", post(handlers::ssh_restart))
+        .route("/api/v1/syslog/config", get(handlers::syslog_config))
+        .route("/api/v1/syslog/config", put(handlers::syslog_set_config))
+        .route("/api/v1/syslog/entries", get(handlers::syslog_entries))
+        .route("/api/v1/syslog/clear", post(handlers::syslog_clear))
+        .route("/api/v1/ipv6/dhcp-relay", get(handlers::dhcpv6_relay_list))
+        .route("/api/v1/ipv6/dhcp-relay", post(handlers::dhcpv6_relay_add))
+        .route("/api/v1/ipv6/dhcp-relay/{name}", delete(handlers::dhcpv6_relay_remove))
+        .route("/api/v1/dns/dot", get(handlers::dns_dot_resolve))
+        .route("/api/v1/net/proxy-arp", get(handlers::proxy_arp_list))
+        .route("/api/v1/net/proxy-arp", post(handlers::proxy_arp_add))
+        .route("/api/v1/net/proxy-arp/{idx}", delete(handlers::proxy_arp_remove))
+        .route("/api/v1/bridge/isolation", get(handlers::bridge_isolation_list))
+        .route("/api/v1/bridge/isolation", post(handlers::bridge_isolation_set))
+        .route("/api/v1/bridge/igmp-proxy", get(handlers::igmp_proxy_config))
+        .route("/api/v1/bridge/igmp-proxy", post(handlers::igmp_proxy_set_config))
+        .route("/api/v1/qos/burst", get(handlers::burst_list))
+        .route("/api/v1/qos/burst", post(handlers::burst_add))
+        .route("/api/v1/qos/burst/{idx}", delete(handlers::burst_remove))
+        .route("/api/v1/dhcp/radius", get(handlers::dhcp_radius_list))
+        .route("/api/v1/dhcp/radius", post(handlers::dhcp_radius_add))
+        .route("/api/v1/dhcp/radius/{idx}", delete(handlers::dhcp_radius_remove))
+        .route("/api/v1/lldp/mndp", get(handlers::mndp_list))
+        .route("/api/v1/system/upgrade", get(handlers::upgrade_config))
+        .route("/api/v1/system/upgrade", put(handlers::upgrade_set_config))
+        .route("/api/v1/system/upgrade/check", post(handlers::upgrade_check))
+        .route("/api/v1/system/upgrade/run", post(handlers::upgrade_run))
+        .route("/api/v1/system/watchdog", get(handlers::watchdog_config))
+        .route("/api/v1/system/watchdog", put(handlers::watchdog_set_config))
         .with_state(state)
 }
 
