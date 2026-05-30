@@ -24,26 +24,6 @@ impl RealWireguardBackend {
         }
     }
 
-    fn gen_privkey() -> String {
-        use rand::Rng;
-        let key: [u8; 32] = rand::thread_rng().gen();
-        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, key)
-    }
-
-    fn derive_pubkey(privkey: &str) -> Result<String> {
-        use x25519_dalek::{EphemeralSecret, PublicKey};
-        use base64::Engine;
-        let priv_bytes = base64::engine::general_purpose::STANDARD
-            .decode(privkey)
-            .map_err(|e| anyhow::anyhow!("invalid base64 private key: {e}"))?;
-        if priv_bytes.len() != 32 {
-            bail!("private key must be 32 bytes");
-        }
-        let secret = EphemeralSecret::random_from_rng(rand::thread_rng());
-        let public = PublicKey::from(&secret);
-        Ok(base64::engine::general_purpose::STANDARD.encode(public.as_bytes()))
-    }
-
     async fn wg_cmd(args: &[&str]) -> Result<String> {
         let output = Command::new("wg")
             .args(args)
@@ -66,16 +46,9 @@ impl WireguardBackend for RealWireguardBackend {
             bail!("WireGuard interface '{}' already exists", iface.name);
         }
 
-        // Generate keys if not provided
-        let privkey = iface
-            .private_key
-            .clone()
-            .unwrap_or_else(Self::gen_privkey);
-        let _ = Self::wg_cmd(&[
-            "genkey",
-            &format!("{}/private-key", iface.name),
-        ])
-        .await;
+        // Generate keypair via wg genkey
+        let privkey = Self::wg_cmd(&["genkey"]).await?;
+        let pubkey = Self::wg_cmd(&["pubkey"]).await?;
 
         // Add interface via ip link
         Command::new("ip")
@@ -83,16 +56,25 @@ impl WireguardBackend for RealWireguardBackend {
             .output()
             .await?;
 
-        // Set listen port
+        // Set listen port and private key
         Self::wg_cmd(&[
             "set",
             &iface.name,
             "listen-port",
             &iface.listen_port.to_string(),
-            "private-key",
-            &format!("/dev/stdin"),
         ])
         .await?;
+
+        // Set private key via stdin pipe
+        let mut set_cmd = Command::new("wg")
+            .args(["set", &iface.name, "private-key", "/dev/stdin"])
+            .stdin(std::process::Stdio::piped())
+            .spawn()?;
+        use tokio::io::AsyncWriteExt;
+        if let Some(mut stdin) = set_cmd.stdin.take() {
+            stdin.write_all(privkey.trim().as_bytes()).await?;
+        }
+        set_cmd.wait().await?;
 
         // Set MTU
         Command::new("ip")
@@ -106,8 +88,14 @@ impl WireguardBackend for RealWireguardBackend {
             .output()
             .await?;
 
-        let mut wg_iface = iface.clone();
-        wg_iface.private_key = Some(privkey);
+        let wg_iface = WireGuardInterface {
+            name: iface.name.clone(),
+            private_key: Some(privkey.trim().to_string()),
+            listen_port: iface.listen_port,
+            public_key: pubkey.trim().to_string(),
+            enabled: true,
+            mtu: iface.mtu,
+        };
         interfaces.insert(iface.name.clone(), wg_iface);
         Ok(())
     }
@@ -144,7 +132,6 @@ impl WireguardBackend for RealWireguardBackend {
             bail!("peer '{}' already exists on {}", peer.public_key, peer.interface);
         }
 
-        // Add peer via wg set
         let mut args = vec!["set", &peer.interface, "peer", &peer.public_key];
         if let Some(ep) = &peer.endpoint {
             let endpoint = format!("{}:{}", ep, peer.endpoint_port.unwrap_or(51820));
@@ -188,8 +175,7 @@ impl WireguardBackend for RealWireguardBackend {
     }
 }
 
-// ─── Mock (no real feature) ────────────────────────────
-
+// Mock when no real feature
 #[cfg(not(feature = "real"))]
 pub use super::backend::MockWireguardBackend as RealWireguardBackend;
 

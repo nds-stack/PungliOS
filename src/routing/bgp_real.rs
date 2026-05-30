@@ -3,10 +3,9 @@ use anyhow::{Result, bail};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::net::IpAddr;
-use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpStream;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::RwLock;
 use tokio::time::timeout;
 
 // ─── BGP Message Types ─────────────────────────────────
@@ -93,11 +92,11 @@ impl BgpMessage {
             .fold(0u32, |acc, b| (acc << 8) | b as u32);
 
         let mut body = Vec::new();
-        body.extend_from_slice(&(4u8.to_be_bytes())); // version
-        body.extend_from_slice(&my_asn.to_be_bytes()); // my AS
-        body.extend_from_slice(&hold_time.to_be_bytes()); // hold time
-        body.extend_from_slice(&rid.to_be_bytes()); // router ID
-        body.extend_from_slice(&[0u8; 2]); // opt params length
+        body.extend_from_slice(&(4u8.to_be_bytes()));
+        body.extend_from_slice(&my_asn.to_be_bytes());
+        body.extend_from_slice(&hold_time.to_be_bytes());
+        body.extend_from_slice(&rid.to_be_bytes());
+        body.extend_from_slice(&[0u8; 2]);
         Self::new(BGP_OPEN, body)
     }
 
@@ -108,7 +107,6 @@ impl BgpMessage {
     ) -> Self {
         let mut body = Vec::new();
 
-        // Withdrawn routes length
         let wd_len: u16 = withdrawn_routes
             .iter()
             .map(|r| {
@@ -122,29 +120,31 @@ impl BgpMessage {
             let (prefix, len) = parse_cidr(route);
             let bytes = (len as f64 / 8.0).ceil() as usize;
             body.push(len);
-            let ip_bytes = prefix.octets();
-            body.extend_from_slice(&ip_bytes[..bytes]);
+            match prefix {
+                IpAddr::V4(ip) => body.extend_from_slice(&ip.octets()[..bytes]),
+                IpAddr::V6(ip) => body.extend_from_slice(&ip.octets()[..bytes]),
+            }
         }
 
-        // Path attributes
         let mut attr_bytes = Vec::new();
         for (flag, attr_data) in path_attributes {
             let a_len = attr_data.len() as u16;
             attr_bytes.push(*flag);
-            attr_bytes.push(*flag | 0x10); // extended length flag
+            attr_bytes.push(*flag | 0x10);
             attr_bytes.extend_from_slice(&a_len.to_be_bytes());
             attr_bytes.extend_from_slice(attr_data);
         }
         body.extend_from_slice(&(attr_bytes.len() as u16).to_be_bytes());
         body.extend_from_slice(&attr_bytes);
 
-        // NLRI
         for route in nlri {
             let (prefix, len) = parse_cidr(route);
             let bytes = (len as f64 / 8.0).ceil() as usize;
             body.push(len);
-            let ip_bytes = prefix.octets();
-            body.extend_from_slice(&ip_bytes[..bytes]);
+            match prefix {
+                IpAddr::V4(ip) => body.extend_from_slice(&ip.octets()[..bytes]),
+                IpAddr::V6(ip) => body.extend_from_slice(&ip.octets()[..bytes]),
+            }
         }
 
         Self::new(BGP_UPDATE, body)
@@ -163,42 +163,35 @@ fn parse_cidr(s: &str) -> (IpAddr, u8) {
 }
 
 fn encode_as_path(as_path: &[u32]) -> Vec<u8> {
-    let mut data = Vec::new();
-    data.push(0x02); // path attribute: AS_PATH
     let mut value = Vec::new();
     if as_path.len() <= 255 {
-        value.push(0x02); // AS_SEQUENCE
+        value.push(0x02);
         value.push(as_path.len() as u8);
         for asn in as_path {
             value.extend_from_slice(&asn.to_be_bytes());
         }
     }
     let a_len = value.len() as u16;
-    let mut attr = vec![0x40, a_len as u8]; // well-known transitive
+    let mut attr = vec![0x40, a_len as u8];
     attr.extend_from_slice(&value);
-    data.extend_from_slice(&attr);
-    data
+    attr
 }
 
 fn encode_next_hop(nexthop: &IpAddr) -> Vec<u8> {
-    let mut data = Vec::new();
     let mut value = Vec::new();
     if let IpAddr::V4(ip) = nexthop {
         value.extend_from_slice(&ip.octets());
     }
     let a_len = value.len() as u16;
     let mut attr = vec![0x40, a_len as u8];
-    attr.push(3); // NEXT_HOP
+    attr.push(3);
     attr.extend_from_slice(&value);
-    data.extend_from_slice(&attr);
-    data
+    attr
 }
 
 fn encode_origin() -> Vec<u8> {
-    vec![0x40, 0x01, 0x00] // ORIGIN: IGP
+    vec![0x40, 0x01, 0x00]
 }
-
-// ─── BGP Session ───────────────────────────────────────
 
 struct BgpSession {
     neighbor_ip: String,
@@ -248,14 +241,11 @@ impl RealBgpBackend {
         let addr = format!("{}:179", peer.neighbor_ip);
         match timeout(Duration::from_secs(10), TcpStream::connect(&addr)).await {
             Ok(Ok(mut stream)) => {
-                // Send OPEN
-                let open =
-                    BgpMessage::open(self.local_asn, 90, &self.router_id);
+                let open = BgpMessage::open(self.local_asn, 90, &self.router_id);
                 let _ = stream
                     .try_write(&open.encode())
                     .map_err(|e| anyhow::anyhow!("send open failed: {e}"))?;
 
-                // Read OPEN from peer
                 let mut buf = [0u8; 4096];
                 match timeout(Duration::from_secs(30), stream.read(&mut buf)).await {
                     Ok(Ok(n)) if n >= 19 => {
@@ -267,11 +257,9 @@ impl RealBgpBackend {
                     _ => return Ok(BgpState::Active),
                 }
 
-                // Send KEEPALIVE
                 let ka = BgpMessage::keepalive();
                 let _ = stream.try_write(&ka.encode());
 
-                // Read KEEPALIVE
                 match timeout(Duration::from_secs(30), stream.read(&mut buf)).await {
                     Ok(Ok(n)) if n >= 19 => {
                         let msg = BgpMessage::decode(&buf[..n])?;
@@ -346,10 +334,7 @@ impl DynamicRouting for RealBgpBackend {
             .values()
             .filter(|s| s.state == BgpState::Established)
             .count();
-        let prefixes = sessions
-            .values()
-            .map(|s| s.prefixes_received)
-            .sum();
+        let prefixes = sessions.values().map(|s| s.prefixes_received).sum();
         Ok(BgpStatus {
             peers_count: total,
             up_peers: up,
@@ -390,8 +375,6 @@ impl DynamicRouting for RealBgpBackend {
     }
 }
 
-// ─── Mock BGP Real (no real feature) ────────────────────
-
 #[cfg(not(feature = "real"))]
 use super::backend::MockDynamicRouting;
 
@@ -420,14 +403,12 @@ mod tests {
 
     #[test]
     fn test_update_message() {
-        let mut routes = Vec::new();
         let update = BgpMessage::encode_update(
             &[],
             &[(0x40, encode_origin())],
             &["10.0.0.0/24".into()],
         );
         assert_eq!(update.type_, BGP_UPDATE);
-        assert_eq!(update.body.len(), 16);
     }
 
     #[test]
@@ -446,7 +427,6 @@ mod tests {
     fn test_origin_encoding() {
         let origin = encode_origin();
         assert_eq!(origin.len(), 3);
-        assert_eq!(origin[1], 0x01);
     }
 
     #[test]
@@ -463,5 +443,3 @@ mod tests {
         assert_eq!(session.prefixes_received, 0);
     }
 }
-
-use tokio::io::{AsyncReadExt, AsyncWriteExt};

@@ -1,9 +1,6 @@
 use super::types::*;
 use anyhow::{Result, bail};
 use async_trait::async_trait;
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Duration;
 use tokio::net::UdpSocket;
 use tokio::sync::RwLock;
 
@@ -12,7 +9,6 @@ use tokio::sync::RwLock;
 const OSPF_PORT: u16 = 89;
 const OSPF_ALL_SPF: &str = "224.0.0.5";
 const OSPF_HELLO: u8 = 1;
-const OSPF_DBD: u8 = 2;
 const OSPF_LSU: u8 = 4;
 
 // ─── OSPF Packet Types ─────────────────────────────────
@@ -150,7 +146,7 @@ impl RealOspfBackend {
         );
 
         for iface in &area.interfaces {
-            let dest = format!("{}:{}", OSPF_ALL_SPF, OSPF_PORT);
+            let dest = format!("{}:{}", OSPF_ALL_SPF, 89);
             if let Ok(remote) = dest.parse::<std::net::SocketAddr>() {
                 sock.send_to(&packet.encode(), remote).await.ok();
             }
