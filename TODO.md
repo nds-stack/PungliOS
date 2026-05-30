@@ -111,12 +111,12 @@
 
 | # | Task | File | Status | Priority |
 |---|------|------|--------|----------|
-| 5.6 | BGP Real Backend (TCP socket + FSM + UPDATE parser) | `src/routing/bgp_real.rs` | 🔴 TODO | P0 |
-| 5.7 | OSPF Real Backend (packet encode/decode + LSDB + SPF) | `src/routing/ospf_real.rs` | 🔴 TODO | P0 |
-| 5.8 | Route Filters / Prefix Lists / AS-Path / Route-Map | `src/routing/filters.rs` | 🔴 TODO | P0 |
-| 5.9 | WireGuard Real Backend (netlink WG_CMD) | `src/wireguard/real.rs` | 🔴 TODO | P0 |
-| 5.10 | Bonding/LACP (802.3ad) | `src/bonding/` | 🔴 TODO | P1 |
-| 5.11 | Bridge VLAN Filtering (netlink bridge vlan) | `src/interface/bridge_vlan.rs` | 🔴 TODO | P1 |
+| 5.6 | BGP Real Backend (TCP socket + FSM + UPDATE parser) | `src/routing/bgp_real.rs` | 🟢 DONE | P0 |
+| 5.7 | OSPF Real Backend (packet encode/decode + LSDB + SPF) | `src/routing/ospf_real.rs` | 🟢 DONE | P0 |
+| 5.8 | Route Filters / Prefix Lists / AS-Path / Route-Map | `src/routing/filters.rs` | 🟢 DONE | P0 |
+| 5.9 | WireGuard Real Backend (netlink WG_CMD) | `src/wireguard/real.rs` | 🟢 DONE | P0 |
+| 5.10 | Bonding/LACP (802.3ad) | `src/bonding/` | 🟢 DONE | P1 |
+| 5.11 | Bridge VLAN Filtering (netlink bridge vlan) | `src/interface/bridge_vlan.rs` → `src/net/bridge_vlan.rs` | 🟢 DONE | P1 |
 
 ### Sprint 3: Networking Infra
 
