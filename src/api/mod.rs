@@ -89,6 +89,7 @@ pub struct AppState {
     pub ddns_mgr: Arc<cloud::DdnsManager>,
     pub health_mon: Arc<health::HealthMonitor>,
     pub ip_accounting: Arc<accounting::IpAccounting>,
+    pub layer7_mgr: Arc<firewall::Layer7Manager>,
     pub monitoring_tx: broadcast::Sender<String>,
 }
 
@@ -184,6 +185,7 @@ impl AppState {
             ddns_mgr: Arc::new(cloud::DdnsManager::new()),
             health_mon: Arc::new(health::HealthMonitor::new()),
             ip_accounting: Arc::new(accounting::IpAccounting::new()),
+            layer7_mgr: Arc::new(firewall::Layer7Manager::new()),
             monitoring_tx,
         }
     }
@@ -772,6 +774,12 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/system/accounting", get(handlers::accounting_status))
         .route("/api/v1/system/accounting", post(handlers::accounting_set_enabled))
         .route("/api/v1/system/accounting/clear", post(handlers::accounting_clear))
+        .route("/api/v1/firewall/layer7", get(handlers::layer7_list))
+        .route("/api/v1/firewall/layer7", post(handlers::layer7_add))
+        .route("/api/v1/firewall/layer7/{name}", get(handlers::layer7_get))
+        .route("/api/v1/firewall/layer7/{name}", delete(handlers::layer7_remove))
+        .route("/api/v1/firewall/layer7/{name}/toggle", post(handlers::layer7_toggle))
+        .route("/api/v1/firewall/layer7/match", post(handlers::layer7_match))
         .with_state(state)
 }
 

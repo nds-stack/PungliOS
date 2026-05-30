@@ -2,6 +2,8 @@ pub mod chain;
 pub mod conn_state;
 pub use mangle::*;
 pub mod mangle;
+pub use layer7::*;
+pub mod layer7;
 pub mod nat;
 pub mod rule;
 pub mod zone;

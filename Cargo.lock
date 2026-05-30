@@ -1789,6 +1789,7 @@ dependencies = [
  "nftnl",
  "nlink",
  "ratatui",
+ "regex",
  "rkyv",
  "serde",
  "serde_json",

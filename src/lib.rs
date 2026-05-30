@@ -78,6 +78,7 @@ use nftnl as _;
 #[cfg(feature = "real")]
 use nlink as _;
 use ratatui as _;
+use regex as _;
 use rkyv as _;
 use serde as _;
 use serde_json as _;

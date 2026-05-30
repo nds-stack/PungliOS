@@ -2858,3 +2858,78 @@ pub(crate) async fn health_update(State(s): State<AppState>, Json(body): Json<se
 pub(crate) async fn accounting_status(State(s): State<AppState>) -> Json<serde_json::Value> { Json(serde_json::json!({"enabled": s.ip_accounting.is_enabled(), "records": s.ip_accounting.get_records()})) }
 pub(crate) async fn accounting_set_enabled(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> { s.ip_accounting.set_enabled(body["enabled"].as_bool().unwrap_or(false)); ok() }
 pub(crate) async fn accounting_clear(State(s): State<AppState>) -> Json<serde_json::Value> { s.ip_accounting.clear(); ok() }
+
+// ─── Layer7 ────────────────────────────────────────────
+
+pub(crate) async fn layer7_list(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(s.layer7_mgr.list()))
+}
+
+pub(crate) async fn layer7_add(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::firewall::Layer7Pattern;
+    let name = body["name"].as_str().unwrap_or("").to_string();
+    let pattern = body["pattern"].as_str().unwrap_or("").to_string();
+    if name.is_empty() {
+        return err("pattern name is required".into());
+    }
+    match s.layer7_mgr.add(Layer7Pattern {
+        name,
+        pattern,
+        description: body["description"].as_str().map(|s| s.to_string()),
+        enabled: body["enabled"].as_bool().unwrap_or(true),
+    }) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn layer7_get(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.layer7_mgr.get(&name) {
+        Some(p) => Json(serde_json::json!(p)),
+        None => err(format!("pattern '{name}' not found")),
+    }
+}
+
+pub(crate) async fn layer7_remove(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    match s.layer7_mgr.remove(&name) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn layer7_toggle(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Json<serde_json::Value> {
+    let enabled = s
+        .layer7_mgr
+        .get(&name)
+        .map(|p| !p.enabled)
+        .unwrap_or(false);
+    match s.layer7_mgr.set_enabled(&name, enabled) {
+        Ok(_) => ok(),
+        Err(e) => err(e.to_string()),
+    }
+}
+
+pub(crate) async fn layer7_match(
+    State(s): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let data_str = body["data"].as_str().unwrap_or("");
+    let data = data_str.as_bytes();
+    let matched = s.layer7_mgr.match_against(data);
+    Json(serde_json::json!({
+        "matched": matched.iter().map(|p| &p.name).collect::<Vec<_>>(),
+        "count": matched.len(),
+    }))
+}
